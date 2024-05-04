@@ -3,12 +3,12 @@
 import gymnasium as gym
 import adlr_environments # pylint: disable=unused-import
 
-env = gym.make('World2D-v0', render_mode='human')
+env = gym.make('World2D-v0', render_mode='human', world_size=20)
 options = {
-    "num_static_obstacles": 5,
-    "num_dynamic_obstacles": 2,
+    "num_static_obstacles": 20,
+    "num_dynamic_obstacles": 3,
     "min_size": 0.8,
-    "max_size": 2
+    "max_size": 3
 }
 
 observation, info = env.reset(seed=42, options=options)
