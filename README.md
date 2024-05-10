@@ -14,3 +14,6 @@ Then simply run the simulation and witness astonishing random movements:
 ```bash
 python simulation.py
 ```
+
+# important links
+- Basis Point Sets Repository: https://github.com/sergeyprokudin/bps
