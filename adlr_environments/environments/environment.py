@@ -6,9 +6,11 @@ import pygame
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
+from bps import bps
+import time
 
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
-
+import matplotlib.pyplot as plt
 
 DEFAULT_OPTIONS = {
     "world_size": 10,
@@ -20,6 +22,36 @@ DEFAULT_OPTIONS = {
     "min_speed": 0.1,
     "max_speed": 0.1,
 }
+
+
+def compute_bps(arr):
+
+
+    # sum along axis
+    arr = np.sum(arr, axis=2)
+
+    # binarize image
+    binarized_image = np.zeros_like(arr)
+    binarized_image[arr < 765] = 0
+    binarized_image[arr == 765] = 1
+
+    # get indices where object points at
+    indices = np.array(np.where(binarized_image == 1))
+
+    # create pointcloud by adding z-component, not necessary: we can use 2d bps
+    #pointcloud = np.concatenate((indices, np.zeros(1, np.shape(indices)[1])))
+    pointcloud = np.transpose(indices)
+    pointcloud = pointcloud[np.newaxis, :, :]
+
+    # normalize pointcloud
+    pointcloud = bps.normalize(pointcloud)
+
+    # now do the encoding
+    start = time.time()
+    bps_encoding, _ = bps.encode(pointcloud, bps_arrangement="random", n_bps_points=100, bps_cell_type="dists", n_jobs=1)
+    bps_encoding = bps_encoding.reshape(-1)
+    print(f"time for one iteration : {time.time() - start}")
+    return bps_encoding
 
 
 class World2D(gym.Env):
@@ -54,19 +86,23 @@ class World2D(gym.Env):
         self.target = Target()
         self.static_obstacles: list[StaticObstacle] = []
         self.dynamic_obstacles: list[DynamicObstacle] = []
+
+
         self.observation_space = spaces.Dict({
             "agent": spaces.Box(0, world_size, shape=(2,), dtype=float),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=float),
+            "pointcloud": spaces.Box(-2, 2, shape=(100, ), dtype=float )
             # OPTION 1: observe either center xy of each obstacle or pointcloud
             #           of all occupied xy's
-            "static": spaces.Sequence(
-                spaces.Box(0, world_size, shape=(2,), dtype=float),
-                stack=True
-            ),
-            "dynamic": spaces.Sequence(
-                spaces.Box(0, world_size, shape=(2,), dtype=float),
-                stack=True
-            ),
+            #
+            # "static": spaces.Sequence(
+            #     spaces.Box(0, world_size, shape=(2,), dtype=float),
+            #     stack=True
+            # ),
+            # "dynamic": spaces.Sequence(
+            #     spaces.Box(0, world_size, shape=(2,), dtype=float),
+            #     stack=True
+            # ),
             # OPTION 2: observe point cloud of the entire environment
             # "environment": spaces.Sequence(
             #     spaces.Box(0, world_size, shape=(2,), dtype=float),
@@ -79,9 +115,9 @@ class World2D(gym.Env):
             #       (and it only warns in the first iteration)
             # NOTE: MAYBE IT IS AN ISSUE! :angry-emoji:
         })
-
         # setting "velocity" in x and y direction independently
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=float)
+        self._render_frame()
 
     def _get_observations(self):
         # TODO: How are the observations of a sequence supposed to look like if
@@ -93,12 +129,19 @@ class World2D(gym.Env):
         dynamic = np.array(o.position for o in self.dynamic_obstacles) \
             if self.dynamic_obstacles else np.array([])
 
+        #start = time.time()
+        pointcloud = compute_bps(self.pointcloud)
+        #print(f"time for one iteration : {time.time() - start}")
+
+
+
         return {
             "agent": self.agent.position,
             "target": self.target.position,
+            "pointcloud": pointcloud
             # currently only observe the center position of the obstacles
-            "static": static,
-            "dynamic": dynamic,
+            # "static": static,
+            # "dynamic": dynamic,
         }
 
     def _get_info(self):
@@ -156,8 +199,10 @@ class World2D(gym.Env):
         observation = self._get_observations()
         info = self._get_info()
 
-        if self.render_mode == "human":
-            self._render_frame()
+        # if self.render_mode == "human":
+        #     self._render_frame()
+
+        self._render_frame()
 
         return observation, info
 
@@ -184,8 +229,11 @@ class World2D(gym.Env):
         collision = any(obs.collision(self.agent) for obs in obstacles)
 
         # reward is negative for each time step except if target was found
-        reward = 100 if win else -1
+        distance = -np.linalg.norm(self.target.position - self.agent.position)
+        reward = 100 if win else distance
         terminated = win or collision
+
+
 
         observation = self._get_observations()
         info = self._get_info()
@@ -215,8 +263,6 @@ class World2D(gym.Env):
         # conversion ratio from world to pixel coordinates
         world2canvas = self.window_size / self.options["world_size"]
 
-        # draw the target
-        self.target.draw(canvas, world2canvas)
 
         # draw static obstacles
         for obstacle in self.static_obstacles:
@@ -226,12 +272,23 @@ class World2D(gym.Env):
         for obstacle in self.dynamic_obstacles:
             obstacle.draw(canvas, world2canvas)
 
+        canvas_copy = canvas.copy()
+        # draw the target
+        self.target.draw(canvas, world2canvas)
+
         # draw the agent
         self.agent.draw(canvas, world2canvas)
 
+
+
         # save current image
         # TODO convert to actual point cloud with object information
-        # pointcloud = np.transpose(pygame.surfarray.pixels3d(canvas)) #, axes=(1, 0, 2)
+        self.pointcloud = np.transpose(np.array(pygame.surfarray.pixels3d(canvas_copy)), axes=(1, 0, 2)) #, axes=(1, 0, 2)
+        #plt.imshow(self.pointcloud)
+        #plt.show()
+
+
+
 
         if self.render_mode == "human":
             # copy drawings from canvas to the visible window
