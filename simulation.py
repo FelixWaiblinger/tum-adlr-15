@@ -3,7 +3,6 @@
 import gymnasium as gym
 import adlr_environments # pylint: disable=unused-import
 
-env = gym.make('World2D-v0', render_mode='human', world_size=20)
 options = {
     "num_static_obstacles": 20,
     "num_dynamic_obstacles": 3,
@@ -11,7 +10,9 @@ options = {
     "max_size": 3
 }
 
-observation, info = env.reset(seed=42, options=options)
+env = gym.make('World2D-v0', render_mode='human') #, options=options)
+
+observation, info = env.reset(seed=42)
 
 print(observation)
 for i in range(1000):
@@ -19,7 +20,7 @@ for i in range(1000):
     observation, reward, terminated, truncated, info = env.step(action)
 
     if terminated or truncated:
-        observation, info = env.reset(options=options)
+        observation, info = env.reset()
 env.close()
 
 print("Simulation finished!")
