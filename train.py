@@ -1,11 +1,14 @@
 """Training"""
 
+# import os
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from gymnasium.wrappers import FlattenObservation
-import os
 import adlr_environments  # pylint: disable=unused-import
+
+
+AGENT = "./agents/ppo_static_obstacles"
 
 
 def train_environment(training_steps):
@@ -25,7 +28,7 @@ def train_environment(training_steps):
     model.learn(total_timesteps=training_steps, progress_bar=True)
 
     # save the agents behaviour
-    model.save("agent")
+    model.save(AGENT)
 
 
 def evaluate_environment():
@@ -36,15 +39,15 @@ def evaluate_environment():
     env = FlattenObservation(env)
 
     # load the trained agent
-    model = PPO.load("agent", env=env)
+    model = PPO.load(AGENT, env=env)
 
     vec_env = model.get_env()
     obs = vec_env.reset()
-    for i in range(100000):
+    for i in range(1000):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = vec_env.step(action)
         vec_env.render("human")
 
 
-train_environment(100)
+# train_environment(100000)
 evaluate_environment()

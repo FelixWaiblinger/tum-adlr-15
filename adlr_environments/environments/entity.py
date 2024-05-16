@@ -39,7 +39,7 @@ class Entity(ABC):
             canvas,
             self.color,
             pygame.Rect(
-                self.position * world2canvas - np.array(self.size),
+                (self.position - 0.5 * np.array(self.size)) * world2canvas,
                 np.array(self.size) * world2canvas
             )
         )
