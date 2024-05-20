@@ -1,73 +1,171 @@
 """Training"""
 
-# import os
+import json
+import numpy as np
 import gymnasium as gym
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_checker import check_env
-from gymnasium.wrappers import FlattenObservation, NormalizeObservation
+from gymnasium.wrappers import FlattenObservation
+from stable_baselines3 import PPO, A2C, DDPG, SAC, TD3
+# from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv #, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
-from environment_wrappers import NormalizedObservation
+from adlr_environments.wrapper import NormalizeObservationWrapper, RewardWrapper
 
-scenario_name = "ppo_static_obstacles_200k_normalized"
-AGENT = "./agents/" + scenario_name
+# scenario_name = "ppo_static_obstacles_200k_normalized"
+AGENT = "./agents/"
+NAME = "ppo_no_obstacles"
+RESULT_PATH = "./agents/random_search_results.json"
 
 
-def environment_creation():
-    def _init():
-         # create environment
-        env = gym.make(id="World2D-v0", render_mode="rgb_array")
+def environment_creation(num_workers: int=1, options: dict | None=None):
+    """Create environment"""
+
+    def env_factory():
+        # create environment
+        env = gym.make(id="World2D-v0", render_mode="rgb_array", options=options)
+
         # flatten observations
         env = FlattenObservation(env)
+
         # normalize observations
-        env = NormalizedObservation(env)
+        env = NormalizeObservationWrapper(env)
+
+        # custom reward function
+        env = RewardWrapper(env, options)
+
+        # check_env(env)
 
         return env
-    return _init
+
+    # single/multi threading
+    env = make_vec_env(
+        env_factory,
+        n_envs=num_workers,
+        vec_env_cls=DummyVecEnv # if num_workers == 1 else SubprocVecEnv
+    )
+
+    return env
 
 
+def start_training(
+    num_steps: int,
+    name: str,
+    num_workers: int=1
+):
+    """Train a new agent from scratch"""
 
-def continue_training(training_steps, old_name, new_name):
-    env = environment_creation()
-    vec_env = make_vec_env(env, n_envs=8, seed=0, vec_env_cls=DummyVecEnv)
-    model = PPO.load("./agents/" + old_name, env=vec_env, tensorboard_log="./logs/" + new_name + "/")
-    model.learn(total_timesteps=training_steps, progress_bar=True)
+    logger = "./logs/" + name
+    env = environment_creation(num_workers=num_workers)
+    # NOTE: consider multi input policy in combination with raw pointcloud
+    model = PPO("MlpPolicy", env, tensorboard_log=logger)
+    model.learn(total_timesteps=num_steps, progress_bar=True)
+    model.save(AGENT + name)
+
+
+def continue_training(
+    num_steps: int,
+    name: str,
+    new_name: str=None,
+    num_workers: int=1
+):
+    """Resume training aka. perform additional training steps and update an
+    existing agent
+    """
+
+    if not new_name:
+        new_name = name
+
+    logger = "./logs/" + new_name
+    env = environment_creation(num_workers=num_workers)
+    model = PPO.load(AGENT + name, env=env, tensorboard_log=logger)
+    model.learn(total_timesteps=num_steps, progress_bar=True)
+    model.save(AGENT + new_name)
     # wrap the environment into observation wrapper
-    model.save("./agents/" + new_name)
 
 
-def train_environment(training_steps):
-    # create environment
-    env = environment_creation()
-    # vectorize environment
-    vec_env = make_vec_env(env, n_envs=8, seed=0, vec_env_cls=DummyVecEnv)
+def evaluate(num_steps: int=1000, num_workers: int=1):
+    """Evaluate a trained agent"""
 
-    # instantiate the agent
-    model = PPO("MlpPolicy", vec_env, tensorboard_log="./logs/" + scenario_name + "/")
-
-    # train the agent
-    model.learn(total_timesteps=training_steps, progress_bar=True)
-
-    # save the agents behaviour
-    model.save(AGENT)
-
-
-def evaluate_environment():
-    env = environment_creation()
-    vec_env = make_vec_env(env, n_envs=8, seed=0, vec_env_cls=DummyVecEnv)
+    env = environment_creation(num_workers=num_workers)
     # load the trained agent
-    model = PPO.load(AGENT, env=vec_env)
+    model = PPO.load(AGENT, env)
 
-    vec_env = model.get_env()
-    obs = vec_env.reset()
-    for i in range(10000):
-        action, _states = model.predict(obs, deterministic=True)
-        obs, reward, done, info = vec_env.step(action)
-        vec_env.render("human")
+    obs = env.reset()
+    for _ in range(num_steps):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        env.render("human")
 
 
-train_environment(training_steps=300000)
+def random_search(
+    search_space: dict,
+    num_tests: int=100,
+    num_train_steps: int=10000
+) -> dict:
+    """Select hyperparameters in search space randomly"""
+
+    results = {
+        "best_parameters": {},
+        "best_avg_reward": float("-inf")
+    }
+
+    for _ in range(num_tests):
+        # select hyperparameters at random
+        parameters = {k: np.random.choice(v) for k, v in search_space.items()}
+
+        # create environment
+        env = environment_creation(num_workers=8, options=parameters)
+
+        # create and train an agent
+        model = parameters["algorithm"]("MlpPolicy", env)
+        model.learn(total_timesteps=num_train_steps, progress_bar=True)
+
+        # evaluate trained agent
+        episode_rewards = [0]
+
+        obs, _ = env.reset()
+        for _ in range(1000):
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, _ = env.step(action)
+            if done:
+                episode_rewards.append(reward)
+            else:
+                episode_rewards[-1] += reward
+
+        avg_reward = np.mean(episode_rewards)
+
+        # save best result
+        if avg_reward > results["best_avg_reward"]:
+            results["best_avg_reward"] = avg_reward
+            results["best_parameters"] = parameters
+
+    return results
+
+
+if __name__ == '__main__':
+    # specify search space
+    space = {
+        "algorithm": [PPO, A2C, DDPG, SAC, TD3],
+        "r_target": [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+        "r_collision": [-1, -2, -5, -10, -25, -50, -100, -250, -500, -1000],
+        "r_time": [-0.5, -0.1, -0.05, -0.01, -0.005, -0.001, -0.0005, -0.0001],
+        "r_distance": [0.001, -0.1, -0.05, -0.01, -0.005, -0.001, -0.0005, -0.0001, -0.00001],
+        "bps_size": [10, 20, 30, 50, 75, 100, 150, 200]
+    }
+
+    # perform random search
+    best_agent = random_search(space, num_tests=10000, num_train_steps=100000)
+    best_agent["best_parameters"] = \
+        {k: str(v) for k, v in best_agent["best_parameters"].items()}
+
+    print(best_agent)
+
+    # store results
+    with open(RESULT_PATH, 'w', encoding="utf-8") as f:
+        json.dump(best_agent, f)
+
+
+# start_training(num_steps=300000, name=NAME)
 #evaluate_environment()
 
 

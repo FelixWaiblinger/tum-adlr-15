@@ -86,15 +86,6 @@ class World2D(gym.Env):
             "state": bps_distances
         }
 
-    def _get_info(self):
-        return {
-            # l2-norm between agent and target
-            "distance": np.linalg.norm(
-                self.agent.position - self.target.position,
-                ord=2
-            )
-        }
-
     def reset(self, *,
         seed: int | None = None,
         options: dict[str, Any] = None
@@ -141,7 +132,14 @@ class World2D(gym.Env):
         self._render_frame()
 
         observation = self._get_observations()
-        info = self._get_info()
+        info = {
+            "win": False,
+            "collision": False,
+            "distance": np.linalg.norm(
+                self.agent.position - self.target.position,
+                ord=2
+            )
+        }
 
         # if self.render_mode == "human":
         #     self._render_frame()
@@ -171,22 +169,21 @@ class World2D(gym.Env):
         collision = any(obs.collision(self.agent) for obs in obstacles)
 
         observation = self._get_observations()
-        info = self._get_info()
-
-        # compute reward TODO move outside into env wrapper
-        reward_w = 10 if win else 0         # reward reaching the goal
-        reward_c = -10 if collision else 0  # penalize collisions
-        reward_d = 0.1 * -info["distance"]  # penalize not moving towards goal
-        reward_t = -0.1                     # penalize time waste
-
-        reward = reward_w + reward_c + reward_d + reward_t
+        info = {
+            "win": win,
+            "collision": collision,
+            "distance": np.linalg.norm(
+                self.agent.position - self.target.position,
+                ord=2
+            )
+        }
 
         terminated = win or collision
 
         if self.render_mode == "human":
             self._render_frame()
 
-        return observation, reward, terminated, False, info
+        return observation, 0, terminated, False, info
 
     def render(self):
         if self.render_mode == "rgb_array":
@@ -217,7 +214,6 @@ class World2D(gym.Env):
         for obstacle in self.dynamic_obstacles:
             obstacle.draw(canvas, world2canvas)
 
-        # canvas_copy = canvas.copy()
         # draw the target
         self.target.draw(canvas, world2canvas)
 
