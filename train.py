@@ -123,7 +123,7 @@ def random_search(
         # evaluate trained agent
         episode_rewards = [0]
 
-        obs, _ = env.reset()
+        obs = env.reset()
         for _ in range(1000):
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, done, _ = env.step(action)
