@@ -9,7 +9,7 @@ from stable_baselines3 import PPO, A2C, DDPG, SAC, TD3
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv #, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import NormalizeObservationWrapper, RewardWrapper
+from adlr_environments.wrapper import NormalizeObservationWrapper, RewardWrapper, HParamCallback
 
 # scenario_name = "ppo_static_obstacles_200k_normalized"
 AGENT = "./agents/"
@@ -112,32 +112,34 @@ def random_search(
     for _ in range(num_tests):
         # select hyperparameters at random
         parameters = {k: np.random.choice(v) for k, v in search_space.items()}
+        print("these are the current parameters : ", parameters)
 
         # create environment
         env = environment_creation(num_workers=8, options=parameters)
 
         # create and train an agent
-        model = parameters["algorithm"]("MlpPolicy", env)
-        model.learn(total_timesteps=num_train_steps, progress_bar=True)
+        logger = "./logs/" + NAME
+        model = parameters["algorithm"]("MlpPolicy", env, tensorboard_log=logger)
+        model.learn(total_timesteps=num_train_steps, progress_bar=True, callback=HParamCallback(parameters))
 
         # evaluate trained agent
         episode_rewards = [0]
-
         obs = env.reset()
         for _ in range(1000):
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, done, _ = env.step(action)
-            if done:
-                episode_rewards.append(reward)
-            else:
-                episode_rewards[-1] += reward
 
-        avg_reward = np.mean(episode_rewards)
+        #     if done:
+        #         episode_rewards.append(reward)
+        #     else:
+        #         episode_rewards[-1] += reward
+        #
+        # avg_reward = np.mean(episode_rewards)
 
         # save best result
-        if avg_reward > results["best_avg_reward"]:
-            results["best_avg_reward"] = avg_reward
-            results["best_parameters"] = parameters
+        # if avg_reward > results["best_avg_reward"]:
+        #     results["best_avg_reward"] = avg_reward
+        #     results["best_parameters"] = parameters
 
     return results
 
@@ -154,7 +156,7 @@ if __name__ == '__main__':
     }
 
     # perform random search
-    best_agent = random_search(space, num_tests=10000, num_train_steps=100000)
+    best_agent = random_search(space, num_tests=10, num_train_steps=10000)
     best_agent["best_parameters"] = \
         {k: str(v) for k, v in best_agent["best_parameters"].items()}
 

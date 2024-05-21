@@ -2,6 +2,8 @@
 
 import numpy as np
 import gymnasium as gym
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import HParam
 # from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvStepReturn, VecEnvWrapper
 
 
@@ -81,3 +83,41 @@ class RewardWrapper(gym.Wrapper): #VecEnvWrapper):
 
     # def step_wait(self):
     #     return self.venv.step_wait()
+
+
+class HParamCallback(BaseCallback):
+    """
+    Saves the hyperparameters at the beginning of training and logs them to Tensorboard.
+    """
+
+    def __init__(self, params_dictionary):
+        super().__init__()
+        self.params_dictionary = params_dictionary
+
+    def _on_training_start(self) -> None:
+        hparam_dict = {
+            "algorithm": self.model.__class__.__name__,
+            "learning rate": self.model.learning_rate,
+            "gamma": self.model.gamma,
+            "r_target": int(self.params_dictionary["r_target"]),
+            "r_collision": int(self.params_dictionary["r_collision"]),
+            "r_time": float(self.params_dictionary["r_time"]),
+            "r_distance": float(self.params_dictionary["r_distance"]),
+            "bps_size": int(self.params_dictionary["bps_size"])
+
+        }
+        # define the metrics that will appear in the `HPARAMS` Tensorboard tab by referencing their tag
+        # Tensorboard will find & display metrics from the `SCALARS` tab
+        metric_dict = {
+            "rollout/ep_rew_mean": 0.0,
+            "rollout/ep_len_mean": 0.0
+        }
+        self.logger.record(
+            "hparams",
+            HParam(hparam_dict, metric_dict),
+            exclude=("stdout", "log", "json", "csv"),
+        )
+
+    def _on_step(self) -> bool:
+        return True
+
