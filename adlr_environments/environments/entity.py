@@ -14,7 +14,7 @@ class Entity(ABC):
     color: tuple
     size: float
 
-    def reset(self, area: int, illegal_positions: list):
+    def reset(self, area: float, illegal_positions: list):
         """Reset the entity for the next episode"""
 
         def too_close(p1, p2):
@@ -22,8 +22,10 @@ class Entity(ABC):
 
         illegal_positions.append(self.position)
         while True:
-            self.position = np.random.uniform(0, area, size=2)
-            illegal = [too_close(self.position, p) for p in illegal_positions]
+            x = np.random.uniform(low=0, high=area)
+            y = np.random.uniform(low=0, high=area)
+            self.position = np.array([x, y], dtype=np.float32)
+            illegal = [False] #[too_close(self.position, p) for p in illegal_positions]
             if not any(illegal):
                 break
 
@@ -61,7 +63,7 @@ class Agent(Entity):
         self.visual = pygame.draw.circle(
             canvas,
             self.color,
-            self.position * world2canvas,
+            (self.position * world2canvas).tolist(),
             self.size * world2canvas
         )
 

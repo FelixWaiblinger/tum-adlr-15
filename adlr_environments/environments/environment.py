@@ -154,7 +154,8 @@ class World2D(gym.Env):
 
         # move agent according to chosen action
         self.agent.position = np.clip(
-            self.agent.position + step_length * action, 0, world_size
+            self.agent.position + step_length * action,
+            0, world_size, dtype=np.float32
         )
 
         # check win condition
