@@ -5,14 +5,14 @@ import json
 
 import numpy as np
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation
+from gymnasium.wrappers import FlattenObservation, NormalizeObservation
 from stable_baselines3 import PPO
-# from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import NormalizeObservationWrapper, RewardWrapper, HParamCallback
-# from adlr_environments.utils import draw_policy
+from adlr_environments.wrapper import RewardWrapper, HParamCallback
+from adlr_environments.utils import to_py_dict, linear_schedule, draw_policy
+
 
 AGENT = "./agents/"
 NAME = "ppo_static_obstacles"
@@ -30,19 +30,16 @@ def environment_creation(num_workers: int=1, options: dict | None=None):
         # flatten observations
         env = FlattenObservation(env)
 
-        # normalize observations
-        # env = NormalizeObservationWrapper(env)
+        # normalize observations NOTE: tests indicate normalizing is bad
+        # env = NormalizeObservation(env)
 
         # custom reward function
         env = RewardWrapper(env, options)
 
         return env
 
-    # check_env(env)
     render = options.pop("render")
     fork = options.pop("fork")
-
-    print(options)
 
     # single/multi threading
     env = make_vec_env(
@@ -88,20 +85,6 @@ def continue_training(
     existing agent
     """
 
-    if not new_name:
-        new_name = name
-
-    logger = "./logs/" + new_name
-    env = environment_creation(num_workers=num_workers)
-    model = PPO.load(AGENT + name, env=env, tensorboard_log=logger)
-    model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT + new_name)
-    # wrap the environment into observation wrapper
-
-
-def evaluate(num_steps: int=1000, num_workers: int=1):
-    """Evaluate a trained agent"""
-
     options = {
         "r_target": 500,
         "r_collision": -10,
@@ -110,21 +93,45 @@ def evaluate(num_steps: int=1000, num_workers: int=1):
         "world_size": 5,
         "num_static_obstacles": 1,
         "bps_size": 5,
+        "fork": True,
+        "render": False,
+    }
+
+    if not new_name:
+        new_name = name
+
+    logger = "./logs/" + new_name
+    env = environment_creation(num_workers=num_workers, options=options)
+    model = PPO.load(name, env=env, tensorboard_log=logger)
+    model.learn(total_timesteps=num_steps, progress_bar=True)
+    model.save(new_name)
+
+
+def evaluate(num_steps: int=1000):
+    """Evaluate a trained agent"""
+
+    options = {
+        "r_target": 100,
+        "r_collision": -50,
+        "r_time": -0.01,
+        "r_distance": -0.01,
+        "world_size": 5,
+        "num_static_obstacles": 1,
+        "bps_size": 5,
         "fork": False,
         "render": True,
     }
 
-    env = environment_creation(num_workers=num_workers, options=options)
+    env = environment_creation(num_workers=1, options=options)
 
     # load the trained agent
-    model = PPO.load(MODEL_PATH, env)
+    model = PPO.load(MODEL_PATH + "_resume", env)
 
     rewards, episodes = 0, 0
     obs = env.reset()
 
-    # draw policy NOTE: does not work yet!
-    # draw_policy(model, obs, canvas, 5)
-    # input()
+    # draw policy
+    draw_policy(model, obs, options["world_size"])
 
     for _ in range(num_steps):
         action, _ = model.predict(obs, deterministic=True)
@@ -133,7 +140,6 @@ def evaluate(num_steps: int=1000, num_workers: int=1):
         env.render()
 
         if done:
-            obs = env.reset()
             episodes += 1
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
@@ -144,13 +150,13 @@ def random_search(
     num_tests: int=100,
     num_train_steps: int=10000,
     num_workers: int=1
-) -> dict:
+):
     """Select hyperparameters in search space randomly"""
 
     # specify search space
     agent_space = {
         # "algorithm": [PPO], #, A2C, DDPG, SAC, TD3],
-        "learning_rate": [0.001, 0.0003, 0.0001],
+        "learning_rate": [linear_schedule(0.001)],
         "n_steps": [1024, 2048, 4096],
         "batch_size": [32, 64, 128],
         "n_epochs": [5, 10, 20],
@@ -161,7 +167,7 @@ def random_search(
         "r_target": [100],
         "r_collision": [-50],
         "r_time": [-0.01],
-        "r_distance": [-0.005],
+        "r_distance": [-0.01],
         "world_size": [5],
         "num_static_obstacles": [1],
         "bps_size": [5],#, 60, 90],
@@ -177,19 +183,9 @@ def random_search(
         best_parameters = {}
         best_avg_reward = float("-inf")
 
-    def clean(d: dict):
-        result = {}
-        for k, v in d.items():
-            if isinstance(v, np.float64):
-                result[k] = float(v)
-            if isinstance(v, np.int64):
-                result[k] = int(v)
-            else:
-                result[k] = float(v)
-        return result
-
     for i in range(num_tests):
         print(f"Running test {i}...")
+
         # select hyperparameters at random
         agent_params = {k: np.random.choice(v) for k, v in agent_space.items()}
         env_params = {k: np.random.choice(v) for k, v in env_space.items()}
@@ -225,7 +221,7 @@ def random_search(
             best_parameters.update(env_params)
             best_parameters.update({"reward": avg_reward})
 
-            best_parameters = clean(best_parameters)
+            best_parameters = to_py_dict(best_parameters)
             print(best_parameters)
 
             # store results
@@ -236,7 +232,8 @@ def random_search(
 
 if __name__ == '__main__':
     # perform random search
-    # random_search(num_tests=1, num_train_steps=300000, num_workers=8)
+    # random_search(num_tests=5, num_train_steps=200000, num_workers=8)
 
     # start_training(num_steps=100000, name=NAME)
     evaluate()
+    # continue_training(num_steps=1000000, name=MODEL_PATH, new_name=MODEL_PATH + "_resume", num_workers=8)

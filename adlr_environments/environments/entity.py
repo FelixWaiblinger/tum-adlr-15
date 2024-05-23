@@ -18,14 +18,18 @@ class Entity(ABC):
         """Reset the entity for the next episode"""
 
         def too_close(p1, p2):
-            return np.all(np.abs(p1 - p2) < np.min(self.size))
+            return np.all(np.abs(p1 - p2) < self.size)
 
         illegal_positions.append(self.position)
         while True:
-            x = np.random.uniform(low=0, high=area)
-            y = np.random.uniform(low=0, high=area)
-            self.position = np.array([x, y], dtype=np.float32)
-            illegal = [False] #[too_close(self.position, p) for p in illegal_positions]
+            # x = np.random.uniform(low=0, high=area)
+            # y = np.random.uniform(low=0, high=area)
+            # self.position = np.array([x, y], dtype=np.float32)
+            self.position = np.random.uniform(low=0, high=area, size=2).astype(np.float32)
+
+            # print(self.position)
+            # print(pos)
+            illegal = [too_close(self.position, p) for p in illegal_positions]
             if not any(illegal):
                 break
 
@@ -42,7 +46,7 @@ class Entity(ABC):
             self.color,
             pygame.Rect(
                 (self.position - 0.5 * np.array(self.size)) * world2canvas,
-                np.array(self.size) * world2canvas
+                self.size * world2canvas * np.ones(2)
             )
         )
 

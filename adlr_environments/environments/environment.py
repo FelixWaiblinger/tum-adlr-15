@@ -95,7 +95,7 @@ class World2D(gym.Env):
         self.options = self.options | (options if options else {})
 
         illegal_positions = []
-        world_size = self.options.get("world_size", 10)
+        world_size = self.options["world_size"]
 
         # reset agent
         self.agent.reset(world_size, illegal_positions)
@@ -105,9 +105,9 @@ class World2D(gym.Env):
 
         # reset static obstacles
         self.static_obstacles.clear()
-        num_static = self.options.get("num_static_obstacles", 0)
-        min_size = self.options.get("min_size", 1)
-        max_size = self.options.get("max_size", 1)
+        num_static = self.options["num_static_obstacles"]
+        min_size = self.options["min_size"]
+        max_size = self.options["max_size"]
 
         for _ in range(num_static):
             size = self.np_random.uniform(min_size, max_size, size=2)
@@ -117,9 +117,9 @@ class World2D(gym.Env):
 
         # reset dynamic obstacles
         self.dynamic_obstacles.clear()
-        num_dynamic = self.options.get("num_dynamic_obstacles", 0)
-        min_speed = self.options.get("min_speed", -0.2)
-        max_speed = self.options.get("max_speed", 0.2)
+        num_dynamic = self.options["num_dynamic_obstacles"]
+        min_speed = self.options["min_speed"]
+        max_speed = self.options["max_speed"]
 
         for _ in range(num_dynamic):
             size = self.np_random.uniform(min_size, max_size, size=2)
@@ -128,6 +128,7 @@ class World2D(gym.Env):
             obstacle.reset(world_size, illegal_positions)
             self.dynamic_obstacles.append(obstacle)
 
+        # important to render once, so all obstacles will be in the pointcloud
         self._render_frame()
 
         observation = self._get_observations()

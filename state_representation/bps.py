@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.spatial.distance import cdist
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 STATIC_COLOR = (0, 0, 0)
@@ -29,7 +29,10 @@ class BPS:
     def encode(self, pointcloud: np.ndarray) -> np.ndarray:
         """Compute minimal distances between basis points and a pointcloud"""
 
-        distances = cdist(self.points, pointcloud, "euclidean")
+        try:
+            distances = cdist(self.points, pointcloud, "euclidean")
+        except ValueError: # workaround to maybe stop crashing
+            distances = np.zeros((len(self.points), len(self.points)))
 
         # ====================================================================
         # NOTE: uncomment to show bps for debugging purposes
