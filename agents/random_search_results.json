@@ -1,1 +1,1 @@
-{"learning_rate": 0.001, "n_steps": 4096, "batch_size": 32, "n_epochs": 20, "gamma": 0.95, "gae_lambda": 0.9, "r_target": 100, "r_collision": -50, "r_time": -0.01, "r_distance": -0.005, "bps_size": 30, "reward": -8.096411478672964}
+{"learning_rate": 0.0001, "n_steps": 1024, "batch_size": 64, "n_epochs": 10, "gamma": 1.0, "gae_lambda": 0.9, "r_target": 100, "r_collision": -50, "r_time": -0.01, "r_distance": -0.005, "world_size": 5, "num_static_obstacles": 1, "bps_size": 5, "reward": 6.11477907343459}

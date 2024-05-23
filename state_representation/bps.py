@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
 
 
 STATIC_COLOR = (0, 0, 0)
@@ -29,6 +30,24 @@ class BPS:
         """Compute minimal distances between basis points and a pointcloud"""
 
         distances = cdist(self.points, pointcloud, "euclidean")
+
+        # ====================================================================
+        # NOTE: uncomment to show bps for debugging purposes
+        # test = []
+        # plt.scatter(self.points[:, 0], self.points[:, 1], color='r')
+        # plt.scatter(pointcloud[:, 0], pointcloud[:, 1])
+        # for p in self.points:
+        #     diffs = np.subtract(pointcloud, p)
+        #     dists = np.linalg.norm(diffs, ord=2, axis=1)
+        #     match = np.argmin(dists)
+        #     test.append(dists[match])
+        #     plt.arrow(p[0], p[1], diffs[match, 0], diffs[match, 1])
+        # plt.show()
+
+        # res = np.min(distances, axis=1).astype(np.float32)
+        # print(np.array(test))
+        # print(res)
+        # ====================================================================
 
         return np.min(distances, axis=1).astype(np.float32)
 
