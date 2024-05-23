@@ -1,7 +1,6 @@
 """2D environment"""
 
 from typing import Any
-# import time
 
 import pygame
 import numpy as np
@@ -57,6 +56,7 @@ class World2D(gym.Env):
         self.target = Target()
         self.static_obstacles: list[StaticObstacle] = []
         self.dynamic_obstacles: list[DynamicObstacle] = []
+        self.pointcloud = None
         self.bps = BPS(options["seed"], options["bps_size"], world_size)
 
         self.observation_space = spaces.Dict({
@@ -73,12 +73,11 @@ class World2D(gym.Env):
             low=-1, high=1, shape=(2,), dtype=np.float32
         )
 
-        self._render_frame()
+        # NOTE: not sure why this is here, remove if unnecessary
+        # self._render_frame()
 
     def _get_observations(self):
-        # start = time.time()
         bps_distances = self.bps.encode(self.pointcloud)
-        # print(f"Time for one iteration : {time.time() - start}")
 
         return {
             "agent": self.agent.position,

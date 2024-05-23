@@ -1,15 +1,18 @@
 """Training"""
 
+import os
 import json
+
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
-from stable_baselines3 import PPO, A2C, DDPG, SAC, TD3
+from stable_baselines3 import PPO
 # from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
 from adlr_environments.wrapper import NormalizeObservationWrapper, RewardWrapper, HParamCallback
+# from adlr_environments.utils import draw_policy
 
 AGENT = "./agents/"
 NAME = "ppo_static_obstacles"
@@ -20,9 +23,9 @@ MODEL_PATH = "./agents/random_search_model"
 def environment_creation(num_workers: int=1, options: dict | None=None):
     """Create environment"""
 
-    def env_factory():
+    def env_factory(render):
         # create environment
-        env = gym.make(id="World2D-v0", render_mode="rgb_array", options=options)
+        env = gym.make(id="World2D-v0", render_mode=render, options=options)
 
         # flatten observations
         env = FlattenObservation(env)
@@ -36,12 +39,18 @@ def environment_creation(num_workers: int=1, options: dict | None=None):
         return env
 
     # check_env(env)
+    render = options.pop("render")
+    fork = options.pop("fork")
+
+    print(options)
 
     # single/multi threading
     env = make_vec_env(
         env_factory,
         n_envs=num_workers,
-        vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv
+        env_kwargs={"render": ("human" if render else "rgb_array")},
+        vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
+        vec_env_kwargs={"start_method": "fork"} if fork else None
     )
 
     return env
@@ -98,22 +107,33 @@ def evaluate(num_steps: int=1000, num_workers: int=1):
         "r_collision": -10,
         "r_time": -0.005,
         "r_distance": -0.01,
-        "bps_size": 75,
+        "world_size": 5,
+        "num_static_obstacles": 1,
+        "bps_size": 5,
+        "fork": False,
+        "render": True,
     }
+
     env = environment_creation(num_workers=num_workers, options=options)
+
     # load the trained agent
-    model = SAC.load(AGENT + NAME, env)
+    model = PPO.load(MODEL_PATH, env)
 
     rewards, episodes = 0, 0
-    obs, _ = env.reset()
+    obs = env.reset()
+
+    # draw policy NOTE: does not work yet!
+    # draw_policy(model, obs, canvas, 5)
+    # input()
+
     for _ in range(num_steps):
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, truncated, _ = env.step(action)
+        obs, reward, done, _ = env.step(action)
         rewards += reward
-        env.render()#"human")
+        env.render()
 
-        if done or truncated:
-            obs, _ = env.reset()
+        if done:
+            obs = env.reset()
             episodes += 1
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
@@ -142,11 +162,20 @@ def random_search(
         "r_collision": [-50],
         "r_time": [-0.01],
         "r_distance": [-0.005],
-        "bps_size": [30, 60, 90],
+        "world_size": [5],
+        "num_static_obstacles": [1],
+        "bps_size": [5],#, 60, 90],
+        "fork": [True],
+        "render": [False],
     }
 
-    best_parameters = {}
-    best_avg_reward = float("-inf")
+    if os.path.exists(RESULT_PATH):
+        with open(RESULT_PATH, 'r', encoding='utf-8') as f:
+            best_parameters = json.load(f)
+            best_avg_reward = best_parameters["reward"]
+    else:
+        best_parameters = {}
+        best_avg_reward = float("-inf")
 
     def clean(d: dict):
         result = {}
@@ -170,7 +199,11 @@ def random_search(
 
         # create and train an agent
         model = PPO("MlpPolicy", env, **agent_params)
-        model.learn(total_timesteps=num_train_steps)#, progress_bar=True)
+
+        try:
+            model.learn(total_timesteps=num_train_steps, progress_bar=True)
+        except EOFError:
+            print("EOF occurred!")
 
         # evaluate trained agent
         rewards = np.zeros(num_workers)
@@ -203,7 +236,7 @@ def random_search(
 
 if __name__ == '__main__':
     # perform random search
-    random_search(num_tests=100, num_train_steps=300000, num_workers=10)
+    # random_search(num_tests=1, num_train_steps=300000, num_workers=8)
 
     # start_training(num_steps=100000, name=NAME)
-    # evaluate()
+    evaluate()
