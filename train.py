@@ -169,8 +169,9 @@ def random_search(
         env = environment_creation(num_workers=num_workers, options=env_params)
 
         # create and train an agent
-        model = PPO("MlpPolicy", env, **agent_params)
-        model.learn(total_timesteps=num_train_steps)#, progress_bar=True)
+        logger = "./logs/" + NAME
+        model = PPO("MlpPolicy", env, **agent_params, tensorboard_log=logger)
+        model.learn(total_timesteps=num_train_steps, progress_bar=True, callback=HParamCallback(env_params=env_params, agent_params=agent_params))
 
         # evaluate trained agent
         rewards = np.zeros(num_workers)
@@ -203,7 +204,7 @@ def random_search(
 
 if __name__ == '__main__':
     # perform random search
-    random_search(num_tests=100, num_train_steps=300000, num_workers=10)
+    random_search(num_tests=5, num_train_steps=300000, num_workers=1)
 
     # start_training(num_steps=100000, name=NAME)
     # evaluate()

@@ -90,22 +90,21 @@ class HParamCallback(BaseCallback):
     Saves the hyperparameters at the beginning of training and logs them to Tensorboard.
     """
 
-    def __init__(self, params_dictionary):
+    def __init__(self, env_params, agent_params):
         super().__init__()
-        self.params_dictionary = params_dictionary
+        self.env_params = env_params
+        self.agent_params = agent_params
 
     def _on_training_start(self) -> None:
-        hparam_dict = {
-            "algorithm": self.model.__class__.__name__,
-            "learning rate": self.model.learning_rate,
-            "gamma": self.model.gamma,
-            "r_target": int(self.params_dictionary["r_target"]),
-            "r_collision": int(self.params_dictionary["r_collision"]),
-            "r_time": float(self.params_dictionary["r_time"]),
-            "r_distance": float(self.params_dictionary["r_distance"]),
-            "bps_size": int(self.params_dictionary["bps_size"])
+        def to_python_type(value):
+            if isinstance(value, np.generic):
+                return value.item()
+            return value
 
-        }
+        hparam_dict = self.env_params | self.agent_params
+        #transform dictionary to python types
+        hparam_dict = {k: to_python_type(v) for k, v in hparam_dict.items()}
+
         # define the metrics that will appear in the `HPARAMS` Tensorboard tab by referencing their tag
         # Tensorboard will find & display metrics from the `SCALARS` tab
         metric_dict = {
