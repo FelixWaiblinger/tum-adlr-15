@@ -1,6 +1,7 @@
 """2D environment"""
 
 from typing import Any
+import copy
 
 import pygame
 import numpy as np
@@ -33,13 +34,15 @@ class World2D(gym.Env):
     metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
 
     def __init__(self,
-        render_mode: str | None = None,
-        options: dict[str, Any] = None
+        render_mode=None, #: str | None = None,
+        options=None, #: dict[str, Any] = None
     ) -> None:
         """Create new environment"""
 
         # fill missing options with default values
-        options = DEFAULT_OPTIONS | (options if options else {})
+        opts = DEFAULT_OPTIONS
+        opts.update((options if options else {}))
+        options = opts
 
         # pygame related stuff
         assert render_mode in self.metadata["render_modes"]
@@ -77,112 +80,120 @@ class World2D(gym.Env):
         # self._render_frame()
 
     def _get_observations(self):
-        bps_distances = self.bps.encode(self.pointcloud)
+        try:
+            bps_distances = self.bps.encode(self.pointcloud)
 
-        return {
-            "agent": self.agent.position,
-            "target": self.target.position,
-            "state": bps_distances
-        }
+            return {
+                "agent": self.agent.position,
+                "target": self.target.position,
+                "state": bps_distances
+            }
+        except:
+            print("Error in bps")
 
     def reset(self, *,
-        seed: int | None = None,
-        options: dict[str, Any] = None
-    ) -> tuple[Any, dict[str, Any]]:
+        seed=None, #: int | None = None,
+        options=None, #: dict[str, Any] = None
+    ): # -> tuple[Any, dict[str, Any]]:
         """Reset environment between episodes"""
 
-        super().reset(seed=seed)
-        self.options = self.options | (options if options else {})
+        try:
+            super().reset(seed=seed)
+            self.options.update((options if options else {}))
 
-        illegal_positions = []
-        world_size = self.options["world_size"]
+            illegal_positions = []
+            world_size = self.options["world_size"]
 
-        # reset agent
-        self.agent.reset(world_size, illegal_positions)
+            # reset agent
+            self.agent.reset(world_size, illegal_positions, self.np_random)
 
-        # reset target
-        self.target.reset(world_size, illegal_positions)
+            # reset target
+            self.target.reset(world_size, illegal_positions, self.np_random)
 
-        # reset static obstacles
-        self.static_obstacles.clear()
-        num_static = self.options["num_static_obstacles"]
-        min_size = self.options["min_size"]
-        max_size = self.options["max_size"]
+            # reset static obstacles
+            self.static_obstacles = []
+            num_static = self.options["num_static_obstacles"]
+            min_size = self.options["min_size"]
+            max_size = self.options["max_size"]
 
-        for _ in range(num_static):
-            size = self.np_random.uniform(min_size, max_size, size=2)
-            obstacle = StaticObstacle(size)
-            obstacle.reset(world_size, illegal_positions)
-            self.static_obstacles.append(obstacle)
+            for _ in range(num_static):
+                size = self.np_random.uniform(min_size, max_size, size=2)
+                obstacle = StaticObstacle(size)
+                obstacle.reset(world_size, illegal_positions, self.np_random)
+                self.static_obstacles.append(obstacle)
 
-        # reset dynamic obstacles
-        self.dynamic_obstacles.clear()
-        num_dynamic = self.options["num_dynamic_obstacles"]
-        min_speed = self.options["min_speed"]
-        max_speed = self.options["max_speed"]
+            # reset dynamic obstacles
+            self.dynamic_obstacles = []
+            num_dynamic = self.options["num_dynamic_obstacles"]
+            min_speed = self.options["min_speed"]
+            max_speed = self.options["max_speed"]
 
-        for _ in range(num_dynamic):
-            size = self.np_random.uniform(min_size, max_size, size=2)
-            speed = self.np_random.uniform(min_speed, max_speed, size=2)
-            obstacle = DynamicObstacle(size, speed)
-            obstacle.reset(world_size, illegal_positions)
-            self.dynamic_obstacles.append(obstacle)
+            for _ in range(num_dynamic):
+                size = self.np_random.uniform(min_size, max_size, size=2)
+                speed = self.np_random.uniform(min_speed, max_speed, size=2)
+                obstacle = DynamicObstacle(size, speed)
+                obstacle.reset(world_size, illegal_positions, self.np_random)
+                self.dynamic_obstacles.append(obstacle)
 
-        # important to render once, so all obstacles will be in the pointcloud
-        self._render_frame()
+            # important to render once, so all obstacles will be in the pointcloud
+            self._render_frame()
 
-        observation = self._get_observations()
-        info = {
-            "win": False,
-            "collision": False,
-            "distance": np.linalg.norm(
-                self.agent.position - self.target.position,
-                ord=2
-            )
-        }
+            observation = self._get_observations()
+            info = {
+                "win": False,
+                "collision": False,
+                "distance": np.linalg.norm(
+                    self.agent.position - self.target.position,
+                    ord=2
+                )
+            }
 
-        # if self.render_mode == "human":
-        #     self._render_frame()
+            # if self.render_mode == "human":
+            #     self._render_frame()
+        except:
+            print("Error in reset")
 
         return observation, info
 
     def step(self, action):
         """Perform one time step"""
 
-        world_size = self.options["world_size"]
-        step_length = self.options["step_length"]
+        try:
+            world_size = self.options["world_size"]
+            step_length = self.options["step_length"]
 
-        # move agent according to chosen action
-        self.agent.position = np.clip(
-            self.agent.position + step_length * action,
-            0, world_size, dtype=np.float32
-        )
-
-        # check win condition
-        win = self.target.collision(self.agent)
-
-        # move dynamic obstacles
-        for obs in self.dynamic_obstacles:
-            obs.move()
-
-        # check collisions
-        obstacles = self.static_obstacles + self.dynamic_obstacles
-        collision = any(obs.collision(self.agent) for obs in obstacles)
-
-        observation = self._get_observations()
-        info = {
-            "win": win,
-            "collision": collision,
-            "distance": np.linalg.norm(
-                self.agent.position - self.target.position,
-                ord=2
+            # move agent according to chosen action
+            self.agent.position = np.clip(
+                self.agent.position + step_length * action,
+                0, world_size, dtype=np.float32
             )
-        }
 
-        terminated = win or collision
+            # check win condition
+            win = self.target.collision(self.agent)
 
-        if self.render_mode == "human":
-            self._render_frame()
+            # move dynamic obstacles
+            for obs in self.dynamic_obstacles:
+                obs.move()
+
+            # check collisions
+            obstacles = self.static_obstacles + self.dynamic_obstacles
+            collision = any(obs.collision(self.agent) for obs in obstacles)
+
+            observation = self._get_observations()
+            info = {
+                "win": win,
+                "collision": collision,
+                "distance": np.linalg.norm(
+                    self.agent.position - self.target.position,
+                    ord=2
+                )
+            }
+
+            terminated = win or collision
+
+            _ = self._render_frame()
+        except:
+            print("Error in step")
 
         return observation, 0, terminated, False, info
 
@@ -191,54 +202,54 @@ class World2D(gym.Env):
             return self._render_frame()
 
     def _render_frame(self):
-        if self.window is None and self.render_mode == "human":
-            pygame.init() # pylint: disable=no-member
-            pygame.display.init()
-            self.window = pygame.display.set_mode(
-                (self.window_size, self.window_size)
-            )
-        if self.clock is None and self.render_mode == "human":
-            self.clock = pygame.time.Clock()
+        try:
+            if self.window is None and self.render_mode == "human":
+                pygame.init() # pylint: disable=no-member
+                pygame.display.init()
+                self.window = pygame.display.set_mode(
+                    (self.window_size, self.window_size)
+                )
+            if self.clock is None and self.render_mode == "human":
+                self.clock = pygame.time.Clock()
 
-        canvas = pygame.Surface((self.window_size, self.window_size))
-        canvas.fill((255, 255, 255))
+            canvas = pygame.Surface((self.window_size, self.window_size))
+            canvas.fill((255, 255, 255))
 
-        # conversion ratio from world to pixel coordinates
-        world_size = self.options["world_size"]
-        world2canvas = self.window_size / world_size
+            # conversion ratio from world to pixel coordinates
+            world_size = self.options["world_size"]
+            world2canvas = self.window_size / world_size
 
-        # draw static obstacles
-        for obstacle in self.static_obstacles:
-            obstacle.draw(canvas, world2canvas)
+            # draw static obstacles
+            for obstacle in self.static_obstacles:
+                obstacle.draw(canvas, world2canvas)
 
-        # draw dynamic obstacles
-        for obstacle in self.dynamic_obstacles:
-            obstacle.draw(canvas, world2canvas)
+            # draw dynamic obstacles
+            for obstacle in self.dynamic_obstacles:
+                obstacle.draw(canvas, world2canvas)
 
-        # draw the target
-        self.target.draw(canvas, world2canvas)
+            # draw the target
+            self.target.draw(canvas, world2canvas)
 
-        # draw the agent
-        self.agent.draw(canvas, world2canvas)
+            # draw the agent
+            self.agent.draw(canvas, world2canvas)
 
-        # create pointcloud from currently rendered image
-        image = np.transpose(
-            np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
-        )
+            # create pointcloud from currently rendered image
+            image = copy.deepcopy(pygame.surfarray.pixels3d(canvas))
+            image = image[::4, ::4, :] # resolution = 0.25 * window_size
+            self.pointcloud = img2pc(image, world_size)
 
-        self.pointcloud = img2pc(image, world_size)
+            if self.render_mode == "human":
+                # copy drawings from canvas to the visible window
+                self.window.blit(canvas, canvas.get_rect())
+                pygame.event.pump()
+                pygame.display.update()
 
-        if self.render_mode == "human":
-            # copy drawings from canvas to the visible window
-            self.window.blit(canvas, canvas.get_rect())
-            pygame.event.pump()
-            pygame.display.update()
-
-            # We need to ensure that human-rendering occurs at the predefined framerate.
-            # The following line will automatically add a delay to keep the framerate stable.
-            self.clock.tick(self.metadata["render_fps"])
-        else:  # rgb_array
-            return image
+                # draw image at given framerate
+                self.clock.tick(self.metadata["render_fps"])
+            else:  # rgb_array
+                return image
+        except:
+            print("Error in render")
 
     def close(self):
         if self.window is not None:

@@ -14,23 +14,22 @@ class Entity(ABC):
     color: tuple
     size: float
 
-    def reset(self, area: float, illegal_positions: list):
+    def reset(self, world_size: float, illegal_positions: list, generator):
         """Reset the entity for the next episode"""
 
         def too_close(p1, p2):
             return np.all(np.abs(p1 - p2) < self.size)
 
-        illegal_positions.append(self.position)
         while True:
-            # x = np.random.uniform(low=0, high=area)
-            # y = np.random.uniform(low=0, high=area)
-            # self.position = np.array([x, y], dtype=np.float32)
-            self.position = np.random.uniform(low=0, high=area, size=2).astype(np.float32)
+            position = generator.uniform(
+                low=0, high=world_size, size=2
+            ).astype(np.float32)
 
-            # print(self.position)
-            # print(pos)
-            illegal = [too_close(self.position, p) for p in illegal_positions]
-            if not any(illegal):
+            illegal = any(too_close(position, p) for p in illegal_positions)
+
+            if not illegal:
+                self.position = position
+                illegal_positions.append(self.position)
                 break
 
     def collision(self, other) -> bool:
@@ -82,12 +81,6 @@ class Target(Entity):
         self.color = (255, 0, 0)
         self.size = np.array((1, 1))
 
-        offset = np.array(self.size) / 2
-        self.visual = pygame.Rect(
-            self.position - offset,
-            self.size
-        )
-
 
 class StaticObstacle(Entity):
     """Static obstacle"""
@@ -98,12 +91,6 @@ class StaticObstacle(Entity):
         self.position = np.zeros(2)
         self.color = (0, 0, 0)
         self.size = np.array(size)
-
-        offset = np.array(self.size) / 2
-        self.visual = pygame.Rect(
-            self.position - offset,
-            self.size
-        )
 
 
 class DynamicObstacle(Entity):
@@ -117,13 +104,7 @@ class DynamicObstacle(Entity):
         self.size = np.array(size)
         self.speed = np.array(speed)
 
-        offset = np.array(self.size) / 2
-        self.visual = pygame.Rect(
-            self.position - offset,
-            self.size
-        )
-
-    def move(self, bounds: tuple | None=None):
+    def move(self, bounds=None): #: tuple | None=None):
         """Move the dynamic obstacle"""
 
         # bounded movement

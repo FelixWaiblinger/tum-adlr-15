@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.spatial.distance import cdist
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 
 STATIC_COLOR = (0, 0, 0)
@@ -16,7 +16,7 @@ class BPS:
         seed: int,
         num_points: int=100,
         world_size: float=1,
-        origin: tuple[float, float]=(0, 0)
+        origin=(0, 0) #: tuple[float, float]=(0, 0)
     ) -> None:
         """Create a set of basis points"""
 
@@ -32,6 +32,7 @@ class BPS:
         try:
             distances = cdist(self.points, pointcloud, "euclidean")
         except ValueError: # workaround to maybe stop crashing
+            print("ValueError in BPS encode")
             distances = np.zeros((len(self.points), len(self.points)))
 
         # ====================================================================
@@ -45,6 +46,7 @@ class BPS:
         #     match = np.argmin(dists)
         #     test.append(dists[match])
         #     plt.arrow(p[0], p[1], diffs[match, 0], diffs[match, 1])
+        # plt.gca().invert_yaxis()
         # plt.show()
 
         # res = np.min(distances, axis=1).astype(np.float32)

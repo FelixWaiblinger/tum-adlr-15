@@ -5,22 +5,22 @@ import json
 
 import numpy as np
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation, NormalizeObservation
-from stable_baselines3 import PPO
+from gymnasium.wrappers import FlattenObservation #, NormalizeObservation
+from stable_baselines3 import PPO, TD3
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import RewardWrapper, HParamCallback
+from adlr_environments.wrapper import RewardWrapper #, HParamCallback
 from adlr_environments.utils import to_py_dict, linear_schedule, draw_policy
 
 
 AGENT = "./agents/"
-NAME = "ppo_static_obstacles"
+NAME = "test"
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
 
 
-def environment_creation(num_workers: int=1, options: dict | None=None):
+def environment_creation(num_workers: int=1, options=None): #: dict | None=None):
     """Create environment"""
 
     def env_factory(render):
@@ -52,7 +52,7 @@ def environment_creation(num_workers: int=1, options: dict | None=None):
 
     return env
 
-
+# NOTE: not updated to fit with the rest of the functions / pipeline
 def start_training(
     num_steps: int,
     name: str,
@@ -61,16 +61,21 @@ def start_training(
     """Train a new agent from scratch"""
 
     options = {
-        "r_target": 500,
+        "r_target": 10,
         "r_collision": -10,
-        "r_time": -0.005,
+        "r_time": -0.01,
         "r_distance": -0.01,
-        "bps_size": 75
+        "world_size": 8,
+        "num_static_obstacles": 3,
+        "bps_size": 50,
+        "fork": True,
+        "render": False,
     }
     logger = "./logs/" + name
     env = environment_creation(num_workers=num_workers, options=options)
     # NOTE: consider multi input policy in combination with raw pointcloud
-    model = SAC("MlpPolicy", env, tensorboard_log=logger)
+    model = PPO("MlpPolicy", env, tensorboard_log=logger, device="cuda",
+                batch_size=128, learning_rate=linear_schedule(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True)
     model.save(AGENT + name)
 
@@ -85,47 +90,61 @@ def continue_training(
     existing agent
     """
 
+    if not new_name:
+        new_name = name
+
     options = {
-        "r_target": 500,
+        "r_target": 10,
         "r_collision": -10,
-        "r_time": -0.005,
+        "r_time": -0.01,
         "r_distance": -0.01,
-        "world_size": 5,
-        "num_static_obstacles": 1,
-        "bps_size": 5,
+        "world_size": 8,
+        "num_static_obstacles": 3,
+        "bps_size": 50,
         "fork": True,
         "render": False,
     }
 
-    if not new_name:
-        new_name = name
+    # if os.path.exists(RESULT_PATH):
+    #     with open(RESULT_PATH, 'r', encoding='utf-8') as f:
+    #         parameters = json.load(f)
+    #         options.update(parameters)
+    # else:
+    #     return
 
     logger = "./logs/" + new_name
     env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO.load(name, env=env, tensorboard_log=logger)
+    model = PPO.load(name, env=env, tensorboard_log=logger, device="cuda")
     model.learn(total_timesteps=num_steps, progress_bar=True)
     model.save(new_name)
 
 
-def evaluate(num_steps: int=1000):
+def evaluate(name: str, num_steps: int=1000):
     """Evaluate a trained agent"""
 
     options = {
-        "r_target": 100,
-        "r_collision": -50,
-        "r_time": -0.01,
-        "r_distance": -0.01,
-        "world_size": 5,
-        "num_static_obstacles": 1,
-        "bps_size": 5,
+        "r_target": 10,
+        "r_collision": -10,
+        "r_time": -0.005,
+        "r_distance": -0.005,
+        "world_size": 8,
+        "num_static_obstacles": 3,
+        "bps_size": 50,
         "fork": False,
         "render": True,
     }
 
+    # if os.path.exists(RESULT_PATH):
+    #     with open(RESULT_PATH, 'r', encoding='utf-8') as f:
+    #         parameters = json.load(f)
+    #         options.update(parameters)
+    # else:
+    #     return
+
     env = environment_creation(num_workers=1, options=options)
 
     # load the trained agent
-    model = PPO.load(MODEL_PATH + "_resume", env)
+    model = PPO.load(name, env)
 
     rewards, episodes = 0, 0
     obs = env.reset()
@@ -154,26 +173,37 @@ def random_search(
     """Select hyperparameters in search space randomly"""
 
     # specify search space
+    # agent_space = {
+    #     "learning_rate": [linear_schedule(0.001), linear_schedule(0.01)],
+    #     "n_steps": [2048],
+    #     "batch_size": [32, 64, 128],
+    #     "n_epochs": [5],
+    #     "gamma": [0.95, 0.99],
+    #     "gae_lambda": [0.95, 0.99],
+    # }
     agent_space = {
-        # "algorithm": [PPO], #, A2C, DDPG, SAC, TD3],
-        "learning_rate": [linear_schedule(0.001)],
-        "n_steps": [1024, 2048, 4096],
-        "batch_size": [32, 64, 128],
-        "n_epochs": [5, 10, 20],
-        "gamma": [0.95, 0.99, 1],
-        "gae_lambda": [0.9, 0.95, 0.99],
+        "learning_rate": [linear_schedule(0.001), linear_schedule(0.01)],
+        "buffer_size": [500000, 1000000],
+        "learning_starts": [50, 100, 200],
+        "batch_size": [128, 256, 512],
+        "tau": [0.01, 0.005, 0.001],
+        "gamma": [0.95, 0.99],
+        "gradient_steps": [1, 2, 3],
+        "policy_delay": [1, 2, 3],
     }
     env_space = {
         "r_target": [100],
-        "r_collision": [-50],
+        "r_collision": [-10],
         "r_time": [-0.01],
         "r_distance": [-0.01],
-        "world_size": [5],
-        "num_static_obstacles": [1],
-        "bps_size": [5],#, 60, 90],
+        "world_size": [8],
+        "num_static_obstacles": [3],
+        "bps_size": [15, 20, 25],#, 60, 90],
         "fork": [True],
         "render": [False],
     }
+    print(str(agent_space["learning_rate"][0]))
+    print(str(agent_space["learning_rate"][1]))
 
     if os.path.exists(RESULT_PATH):
         with open(RESULT_PATH, 'r', encoding='utf-8') as f:
@@ -196,10 +226,7 @@ def random_search(
         # create and train an agent
         model = PPO("MlpPolicy", env, **agent_params)
 
-        try:
-            model.learn(total_timesteps=num_train_steps, progress_bar=True)
-        except EOFError:
-            print("EOF occurred!")
+        model.learn(total_timesteps=num_train_steps, progress_bar=True)
 
         # evaluate trained agent
         rewards = np.zeros(num_workers)
@@ -231,9 +258,14 @@ def random_search(
 
 
 if __name__ == '__main__':
-    # perform random search
-    # random_search(num_tests=5, num_train_steps=200000, num_workers=8)
+    # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=100000, name=NAME)
-    evaluate()
-    # continue_training(num_steps=1000000, name=MODEL_PATH, new_name=MODEL_PATH + "_resume", num_workers=8)
+    # start_training(num_steps=1000000, name=NAME, num_workers=8)
+
+    # continue_training(
+    #     num_steps=500000,
+    #     name=AGENT + NAME,
+    #     num_workers=8
+    # )
+
+    evaluate(AGENT + NAME)
