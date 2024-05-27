@@ -65,10 +65,11 @@ class World2D(gym.Env):
         self.observation_space = spaces.Dict({
             "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
-            "state": spaces.Box(
-                low=0, high=world_size * np.sqrt(2), # possible distances
-                shape=(options["bps_size"],), dtype=np.float32
-            )
+            "state": spaces.Box(0, world_size, shape=(self.options["num_static_obstacles"], 2), dtype=np.float32)
+            # "state": spaces.Box(
+            #     low=0, high=world_size * np.sqrt(2), # possible distances
+            #     shape=(options["bps_size"],), dtype=np.float32
+            # )
         })
 
         # setting "velocity" in x and y direction independently
@@ -81,12 +82,14 @@ class World2D(gym.Env):
 
     def _get_observations(self):
         try:
-            bps_distances = self.bps.encode(self.pointcloud)
+            # bps_distances = self.bps.encode(self.pointcloud)
+            obstacle_positions = np.array(list(map(lambda x: x.position, self.static_obstacles)))
 
             return {
                 "agent": self.agent.position,
                 "target": self.target.position,
-                "state": bps_distances
+                # "state": bps_distances
+                "state": obstacle_positions.astype(np.float32)
             }
         except:
             print("Error in bps")
@@ -97,108 +100,102 @@ class World2D(gym.Env):
     ): # -> tuple[Any, dict[str, Any]]:
         """Reset environment between episodes"""
 
-        try:
-            super().reset(seed=seed)
-            self.options.update((options if options else {}))
+        super().reset(seed=seed)
+        self.options.update((options if options else {}))
 
-            illegal_positions = []
-            world_size = self.options["world_size"]
+        illegal_positions = []
+        world_size = self.options["world_size"]
 
-            # reset agent
-            self.agent.reset(world_size, illegal_positions, self.np_random)
+        # reset agent
+        self.agent.reset(world_size, illegal_positions, self.np_random)
 
-            # reset target
-            self.target.reset(world_size, illegal_positions, self.np_random)
+        # reset target
+        self.target.reset(world_size, illegal_positions, self.np_random)
 
-            # reset static obstacles
-            self.static_obstacles = []
-            num_static = self.options["num_static_obstacles"]
-            min_size = self.options["min_size"]
-            max_size = self.options["max_size"]
+        # reset static obstacles
+        self.static_obstacles = []
+        num_static = self.options["num_static_obstacles"]
+        min_size = self.options["min_size"]
+        max_size = self.options["max_size"]
 
-            for _ in range(num_static):
-                size = self.np_random.uniform(min_size, max_size, size=2)
-                obstacle = StaticObstacle(size)
-                obstacle.reset(world_size, illegal_positions, self.np_random)
-                self.static_obstacles.append(obstacle)
+        for _ in range(num_static):
+            size = self.np_random.uniform(min_size, max_size, size=2)
+            obstacle = StaticObstacle()
+            obstacle.reset(world_size, illegal_positions, self.np_random)
+            self.static_obstacles.append(obstacle)
 
-            # reset dynamic obstacles
-            self.dynamic_obstacles = []
-            num_dynamic = self.options["num_dynamic_obstacles"]
-            min_speed = self.options["min_speed"]
-            max_speed = self.options["max_speed"]
+        # reset dynamic obstacles
+        self.dynamic_obstacles = []
+        num_dynamic = self.options["num_dynamic_obstacles"]
+        min_speed = self.options["min_speed"]
+        max_speed = self.options["max_speed"]
 
-            for _ in range(num_dynamic):
-                size = self.np_random.uniform(min_size, max_size, size=2)
-                speed = self.np_random.uniform(min_speed, max_speed, size=2)
-                obstacle = DynamicObstacle(size, speed)
-                obstacle.reset(world_size, illegal_positions, self.np_random)
-                self.dynamic_obstacles.append(obstacle)
+        for _ in range(num_dynamic):
+            size = self.np_random.uniform(min_size, max_size, size=2)
+            speed = self.np_random.uniform(min_speed, max_speed, size=2)
+            obstacle = DynamicObstacle(speed)
+            obstacle.reset(world_size, illegal_positions, self.np_random)
+            self.dynamic_obstacles.append(obstacle)
 
-            # important to render once, so all obstacles will be in the pointcloud
-            self._render_frame()
+        # important to render once, so all obstacles will be in the pointcloud
+        # self._render_frame()
 
-            observation = self._get_observations()
-            info = {
-                "win": False,
-                "collision": False,
-                "distance": np.linalg.norm(
-                    self.agent.position - self.target.position,
-                    ord=2
-                )
-            }
-
-            # if self.render_mode == "human":
-            #     self._render_frame()
-        except:
-            print("Error in reset")
+        observation = self._get_observations()
+        info = {
+            "win": False,
+            "collision": False,
+            "distance": np.linalg.norm(
+                self.agent.position - self.target.position,
+                ord=2
+            )
+        }
 
         return observation, info
 
     def step(self, action):
         """Perform one time step"""
 
-        try:
-            world_size = self.options["world_size"]
-            step_length = self.options["step_length"]
+        world_size = self.options["world_size"]
+        step_length = self.options["step_length"]
 
-            # move agent according to chosen action
-            self.agent.position = np.clip(
-                self.agent.position + step_length * action,
-                0, world_size, dtype=np.float32
+        # move agent according to chosen action
+        self.agent.position = np.clip(
+            self.agent.position + step_length * action,
+            0, world_size, dtype=np.float32
+        )
+
+        # check win condition
+        win = self.target.collision(self.agent)
+
+        # move dynamic obstacles
+        for obs in self.dynamic_obstacles:
+            obs.move()
+
+        # check collisions
+        obstacles = self.static_obstacles + self.dynamic_obstacles
+
+        collision = any(obs.collision(self.agent) for obs in obstacles)
+        # if collision:
+        #     print("Collision!")
+
+        observation = self._get_observations()
+        info = {
+            "win": win,
+            "collision": collision,
+            "distance": np.linalg.norm(
+                self.agent.position - self.target.position,
+                ord=2
             )
+        }
 
-            # check win condition
-            win = self.target.collision(self.agent)
+        terminated = win or collision
 
-            # move dynamic obstacles
-            for obs in self.dynamic_obstacles:
-                obs.move()
-
-            # check collisions
-            obstacles = self.static_obstacles + self.dynamic_obstacles
-            collision = any(obs.collision(self.agent) for obs in obstacles)
-
-            observation = self._get_observations()
-            info = {
-                "win": win,
-                "collision": collision,
-                "distance": np.linalg.norm(
-                    self.agent.position - self.target.position,
-                    ord=2
-                )
-            }
-
-            terminated = win or collision
-
-            _ = self._render_frame()
-        except:
-            print("Error in step")
+            # _ = self._render_frame()
 
         return observation, 0, terminated, False, info
 
     def render(self):
-        if self.render_mode == "rgb_array":
+        if self.render_mode == "human":
             return self._render_frame()
 
     def _render_frame(self):

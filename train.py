@@ -10,7 +10,7 @@ from stable_baselines3 import PPO, TD3
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import RewardWrapper #, HParamCallback
+from adlr_environments.wrapper import RewardWrapper, HParamCallback
 from adlr_environments.utils import to_py_dict, linear_schedule, draw_policy
 
 
@@ -47,12 +47,12 @@ def environment_creation(num_workers: int=1, options=None): #: dict | None=None)
         n_envs=num_workers,
         env_kwargs={"render": ("human" if render else "rgb_array")},
         vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        vec_env_kwargs={"start_method": "fork"} if fork else None
+        # vec_env_kwargs={"start_method": "fork"} if fork else None
     )
 
     return env
 
-# NOTE: not updated to fit with the rest of the functions / pipeline
+
 def start_training(
     num_steps: int,
     name: str,
@@ -65,19 +65,20 @@ def start_training(
         "r_collision": -10,
         "r_time": -0.01,
         "r_distance": -0.01,
-        "world_size": 8,
-        "num_static_obstacles": 3,
+        "world_size": 10,
+        "num_static_obstacles": 5,
         "bps_size": 50,
         "fork": True,
         "render": False,
     }
-    logger = "./logs/" + name
+    logger = "./logs/" + NAME
     env = environment_creation(num_workers=num_workers, options=options)
     # NOTE: consider multi input policy in combination with raw pointcloud
-    model = PPO("MlpPolicy", env, tensorboard_log=logger, device="cuda",
+    model = PPO("MlpPolicy", env, tensorboard_log=logger,
                 batch_size=128, learning_rate=linear_schedule(0.001))
-    model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT + name)
+    model.learn(total_timesteps=num_steps, progress_bar=True,
+                callback=HParamCallback(env_params=options))
+    model.save(AGENT + NAME)
 
 
 def continue_training(
@@ -114,7 +115,7 @@ def continue_training(
 
     logger = "./logs/" + new_name
     env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO.load(name, env=env, tensorboard_log=logger, device="cuda")
+    model = PPO.load(name, env=env, tensorboard_log=logger)
     model.learn(total_timesteps=num_steps, progress_bar=True)
     model.save(new_name)
 
@@ -125,10 +126,10 @@ def evaluate(name: str, num_steps: int=1000):
     options = {
         "r_target": 10,
         "r_collision": -10,
-        "r_time": -0.005,
-        "r_distance": -0.005,
-        "world_size": 8,
-        "num_static_obstacles": 3,
+        "r_time": -0.01,
+        "r_distance": -0.01,
+        "world_size": 10,
+        "num_static_obstacles": 5,
         "bps_size": 50,
         "fork": False,
         "render": True,
@@ -156,7 +157,7 @@ def evaluate(name: str, num_steps: int=1000):
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _ = env.step(action)
         rewards += reward
-        env.render()
+        env.render("human")
 
         if done:
             episodes += 1
@@ -260,7 +261,7 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=1000000, name=NAME, num_workers=8)
+    # start_training(num_steps=500000, name=NAME, num_workers=8)
 
     # continue_training(
     #     num_steps=500000,

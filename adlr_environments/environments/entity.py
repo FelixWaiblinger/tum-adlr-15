@@ -10,7 +10,6 @@ class Entity(ABC):
     """2D entity"""
 
     position: np.ndarray
-    visual: pygame.Rect
     color: tuple
     size: float
 
@@ -35,18 +34,19 @@ class Entity(ABC):
     def collision(self, other) -> bool:
         """Check for a collision"""
 
-        return self.visual.colliderect(other.visual)
+        sizes = self.size + other.size
+        distance = np.linalg.norm(self.position - other.position, ord=2)
+        
+        return distance < sizes
 
     def draw(self, canvas: pygame.Surface, world2canvas: float):
         """Draw the entity on the canvas"""
 
-        self.visual = pygame.draw.rect(
+        pygame.draw.circle(
             canvas,
             self.color,
-            pygame.Rect(
-                (self.position - 0.5 * np.array(self.size)) * world2canvas,
-                self.size * world2canvas * np.ones(2)
-            )
+            (self.position * world2canvas), #.tolist(),
+            self.size * world2canvas
         )
 
 
@@ -60,16 +60,6 @@ class Agent(Entity):
         self.color = (0, 0, 255)
         self.size = 0.3
 
-    def draw(self, canvas: pygame.Surface, world2canvas: float):
-        """Draw the agent on the canvas"""
-
-        self.visual = pygame.draw.circle(
-            canvas,
-            self.color,
-            (self.position * world2canvas).tolist(),
-            self.size * world2canvas
-        )
-
 
 class Target(Entity):
     """2D Target box"""
@@ -79,29 +69,29 @@ class Target(Entity):
 
         self.position = np.zeros(2)
         self.color = (255, 0, 0)
-        self.size = np.array((1, 1))
+        self.size = 0.5
 
 
 class StaticObstacle(Entity):
     """Static obstacle"""
 
-    def __init__(self, size: tuple=(1, 1)) -> None:
+    def __init__(self) -> None:
         """Create a new static obstacle"""
 
         self.position = np.zeros(2)
         self.color = (0, 0, 0)
-        self.size = np.array(size)
+        self.size = 0.5
 
 
 class DynamicObstacle(Entity):
     """Dynamic obstacle"""
 
-    def __init__(self, size: tuple=(1, 1), speed: tuple=(1, 1)) -> None:
+    def __init__(self, speed: tuple=(1, 1)) -> None:
         """Create a new dynamic obstacle"""
 
         self.position = np.zeros(2)
         self.color = (0, 255, 0)
-        self.size = np.array(size)
+        self.size = 0.5
         self.speed = np.array(speed)
 
     def move(self, bounds=None): #: tuple | None=None):
