@@ -44,8 +44,8 @@ class RewardWrapper(gym.Wrapper): #VecEnvWrapper):
         reward = 0
         reward += self.r_target if info["win"] else 0
         reward += self.r_collision if info["collision"] else 0
-        reward += self.r_time
-        reward += self.r_distance * info["distance"]
+        reward += self.r_time * np.exp(-info["timestep"])
+        reward += self.r_distance * np.exp(-info["distance"])
 
         return obs, reward, terminated, truncated, info
 
@@ -69,7 +69,7 @@ class HParamCallback(BaseCallback):
         hparam_dict = {}
         hparam_dict.update(self.env_params)
         hparam_dict.update(self.agent_params)
-        
+
         #transform dictionary to python types
         hparam_dict = {k: to_python_type(v) for k, v in hparam_dict.items()}
 

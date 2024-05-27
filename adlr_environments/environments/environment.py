@@ -1,6 +1,6 @@
 """2D environment"""
 
-from typing import Any
+from typing import Any, Dict, Tuple
 import copy
 
 import pygame
@@ -18,8 +18,6 @@ DEFAULT_OPTIONS = {
     "step_length": 0.1,
     "num_static_obstacles": 5,
     "num_dynamic_obstacles": 0,
-    "min_size": 1,
-    "max_size": 1,
     "min_speed": 0.1,
     "max_speed": 0.1,
     "bps_size": 100,
@@ -34,8 +32,8 @@ class World2D(gym.Env):
     metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
 
     def __init__(self,
-        render_mode=None, #: str | None = None,
-        options=None, #: dict[str, Any] = None
+        render_mode=None, #,: str | None = None,
+        options: Dict[str, Any] = None
     ) -> None:
         """Create new environment"""
 
@@ -53,6 +51,7 @@ class World2D(gym.Env):
         self.options = options
 
         world_size = options["world_size"]
+        obstacles = options["num_static_obstacles"]
 
         # observations
         self.agent = Agent()
@@ -61,11 +60,14 @@ class World2D(gym.Env):
         self.dynamic_obstacles: list[DynamicObstacle] = []
         self.pointcloud = None
         self.bps = BPS(options["seed"], options["bps_size"], world_size)
+        self.timestep = 0
 
         self.observation_space = spaces.Dict({
             "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
-            "state": spaces.Box(0, world_size, shape=(self.options["num_static_obstacles"], 2), dtype=np.float32)
+            "state": spaces.Box(
+                0, world_size, shape=(obstacles * 2,), dtype=np.float32
+            )
             # "state": spaces.Box(
             #     low=0, high=world_size * np.sqrt(2), # possible distances
             #     shape=(options["bps_size"],), dtype=np.float32
@@ -77,27 +79,22 @@ class World2D(gym.Env):
             low=-1, high=1, shape=(2,), dtype=np.float32
         )
 
-        # NOTE: not sure why this is here, remove if unnecessary
-        # self._render_frame()
-
     def _get_observations(self):
-        try:
-            # bps_distances = self.bps.encode(self.pointcloud)
-            obstacle_positions = np.array(list(map(lambda x: x.position, self.static_obstacles)))
-
-            return {
-                "agent": self.agent.position,
-                "target": self.target.position,
-                # "state": bps_distances
-                "state": obstacle_positions.astype(np.float32)
-            }
-        except:
-            print("Error in bps")
+        # bps_distances = self.bps.encode(self.pointcloud)
+        obstacles = np.array([x.position for x in self.static_obstacles])
+        obstacles = obstacles.flatten().astype(np.float32)
+        
+        return {
+            "agent": self.agent.position,
+            "target": self.target.position,
+            # "state": bps_distances
+            "state": obstacles
+        }
 
     def reset(self, *,
         seed=None, #: int | None = None,
-        options=None, #: dict[str, Any] = None
-    ): # -> tuple[Any, dict[str, Any]]:
+        options: Dict[str, Any] = None
+    ) -> Tuple[Any, Dict[str, Any]]:
         """Reset environment between episodes"""
 
         super().reset(seed=seed)
@@ -115,11 +112,8 @@ class World2D(gym.Env):
         # reset static obstacles
         self.static_obstacles = []
         num_static = self.options["num_static_obstacles"]
-        min_size = self.options["min_size"]
-        max_size = self.options["max_size"]
 
         for _ in range(num_static):
-            size = self.np_random.uniform(min_size, max_size, size=2)
             obstacle = StaticObstacle()
             obstacle.reset(world_size, illegal_positions, self.np_random)
             self.static_obstacles.append(obstacle)
@@ -131,23 +125,22 @@ class World2D(gym.Env):
         max_speed = self.options["max_speed"]
 
         for _ in range(num_dynamic):
-            size = self.np_random.uniform(min_size, max_size, size=2)
             speed = self.np_random.uniform(min_speed, max_speed, size=2)
             obstacle = DynamicObstacle(speed)
             obstacle.reset(world_size, illegal_positions, self.np_random)
             self.dynamic_obstacles.append(obstacle)
 
-        # important to render once, so all obstacles will be in the pointcloud
-        # self._render_frame()
+        self.timestep = 0
 
         observation = self._get_observations()
         info = {
             "win": False,
             "collision": False,
+            "timestep": self.timestep,
             "distance": np.linalg.norm(
                 self.agent.position - self.target.position,
                 ord=2
-            )
+            ),
         }
 
         return observation, info
@@ -173,24 +166,21 @@ class World2D(gym.Env):
 
         # check collisions
         obstacles = self.static_obstacles + self.dynamic_obstacles
-
         collision = any(obs.collision(self.agent) for obs in obstacles)
-        # if collision:
-        #     print("Collision!")
+        
+        terminated = win or collision
+        self.timestep += 1
 
         observation = self._get_observations()
         info = {
             "win": win,
             "collision": collision,
+            "timestep": self.timestep,
             "distance": np.linalg.norm(
                 self.agent.position - self.target.position,
                 ord=2
             )
         }
-
-        terminated = win or collision
-
-            # _ = self._render_frame()
 
         return observation, 0, terminated, False, info
 
@@ -199,54 +189,51 @@ class World2D(gym.Env):
             return self._render_frame()
 
     def _render_frame(self):
-        try:
-            if self.window is None and self.render_mode == "human":
-                pygame.init() # pylint: disable=no-member
-                pygame.display.init()
-                self.window = pygame.display.set_mode(
-                    (self.window_size, self.window_size)
-                )
-            if self.clock is None and self.render_mode == "human":
-                self.clock = pygame.time.Clock()
+        if self.window is None and self.render_mode == "human":
+            pygame.init() # pylint: disable=no-member
+            pygame.display.init()
+            self.window = pygame.display.set_mode(
+                (self.window_size, self.window_size)
+            )
+        if self.clock is None and self.render_mode == "human":
+            self.clock = pygame.time.Clock()
 
-            canvas = pygame.Surface((self.window_size, self.window_size))
-            canvas.fill((255, 255, 255))
+        canvas = pygame.Surface((self.window_size, self.window_size))
+        canvas.fill((255, 255, 255))
 
-            # conversion ratio from world to pixel coordinates
-            world_size = self.options["world_size"]
-            world2canvas = self.window_size / world_size
+        # conversion ratio from world to pixel coordinates
+        world_size = self.options["world_size"]
+        world2canvas = self.window_size / world_size
 
-            # draw static obstacles
-            for obstacle in self.static_obstacles:
-                obstacle.draw(canvas, world2canvas)
+        # draw static obstacles
+        for obstacle in self.static_obstacles:
+            obstacle.draw(canvas, world2canvas)
 
-            # draw dynamic obstacles
-            for obstacle in self.dynamic_obstacles:
-                obstacle.draw(canvas, world2canvas)
+        # draw dynamic obstacles
+        for obstacle in self.dynamic_obstacles:
+            obstacle.draw(canvas, world2canvas)
 
-            # draw the target
-            self.target.draw(canvas, world2canvas)
+        # draw the target
+        self.target.draw(canvas, world2canvas)
 
-            # draw the agent
-            self.agent.draw(canvas, world2canvas)
+        # draw the agent
+        self.agent.draw(canvas, world2canvas)
 
-            # create pointcloud from currently rendered image
-            image = copy.deepcopy(pygame.surfarray.pixels3d(canvas))
-            image = image[::4, ::4, :] # resolution = 0.25 * window_size
-            self.pointcloud = img2pc(image, world_size)
+        # create pointcloud from currently rendered image
+        image = copy.deepcopy(pygame.surfarray.pixels3d(canvas))
+        image = image[::4, ::4, :] # resolution = 0.25 * window_size
+        self.pointcloud = img2pc(image, world_size)
 
-            if self.render_mode == "human":
-                # copy drawings from canvas to the visible window
-                self.window.blit(canvas, canvas.get_rect())
-                pygame.event.pump()
-                pygame.display.update()
+        if self.render_mode == "human":
+            # copy drawings from canvas to the visible window
+            self.window.blit(canvas, canvas.get_rect())
+            pygame.event.pump()
+            pygame.display.update()
 
-                # draw image at given framerate
-                self.clock.tick(self.metadata["render_fps"])
-            else:  # rgb_array
-                return image
-        except:
-            print("Error in render")
+            # draw image at given framerate
+            self.clock.tick(self.metadata["render_fps"])
+        else:  # rgb_array
+            return image
 
     def close(self):
         if self.window is not None:

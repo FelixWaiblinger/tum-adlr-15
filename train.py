@@ -2,11 +2,12 @@
 
 import os
 import json
+from typing import Dict
 
 import numpy as np
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation #, NormalizeObservation
-from stable_baselines3 import PPO, TD3
+from gymnasium.wrappers import FlattenObservation
+from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
@@ -14,13 +15,23 @@ from adlr_environments.wrapper import RewardWrapper, HParamCallback
 from adlr_environments.utils import to_py_dict, linear_schedule, draw_policy
 
 
-AGENT = "./agents/"
-NAME = "test"
+AGENT = "no_bps"
+AGENT_PATH = "./agents/" + AGENT
+LOG_PATH = "./logs/" + AGENT
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
+OPTIONS = {
+    "r_target": 10,
+    "r_collision": -10,
+    "r_time": 5,
+    "r_distance": 2,
+    "world_size": 10,
+    "num_static_obstacles": 5,
+    "bps_size": 50,
+}
 
 
-def environment_creation(num_workers: int=1, options=None): #: dict | None=None):
+def environment_creation(num_workers: int=1, options: Dict=None):
     """Create environment"""
 
     def env_factory(render):
@@ -47,7 +58,7 @@ def environment_creation(num_workers: int=1, options=None): #: dict | None=None)
         n_envs=num_workers,
         env_kwargs={"render": ("human" if render else "rgb_array")},
         vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        # vec_env_kwargs={"start_method": "fork"} if fork else None
+        vec_env_kwargs={"start_method": "fork"} if fork else None
     )
 
     return env
@@ -55,102 +66,56 @@ def environment_creation(num_workers: int=1, options=None): #: dict | None=None)
 
 def start_training(
     num_steps: int,
-    name: str,
     num_workers: int=1
-):
+) -> None:
     """Train a new agent from scratch"""
 
-    options = {
-        "r_target": 10,
-        "r_collision": -10,
-        "r_time": -0.01,
-        "r_distance": -0.01,
-        "world_size": 10,
-        "num_static_obstacles": 5,
-        "bps_size": 50,
-        "fork": True,
-        "render": False,
-    }
-    logger = "./logs/" + NAME
+    logger = LOG_PATH
+    options = OPTIONS
+    options.update({"fork": True, "render": False})
+
     env = environment_creation(num_workers=num_workers, options=options)
-    # NOTE: consider multi input policy in combination with raw pointcloud
     model = PPO("MlpPolicy", env, tensorboard_log=logger,
                 batch_size=128, learning_rate=linear_schedule(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True,
                 callback=HParamCallback(env_params=options))
-    model.save(AGENT + NAME)
+    model.save(AGENT_PATH)
 
 
 def continue_training(
     num_steps: int,
-    name: str,
     new_name: str=None,
     num_workers: int=1
-):
+) -> None:
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
 
     if not new_name:
-        new_name = name
-
-    options = {
-        "r_target": 10,
-        "r_collision": -10,
-        "r_time": -0.01,
-        "r_distance": -0.01,
-        "world_size": 8,
-        "num_static_obstacles": 3,
-        "bps_size": 50,
-        "fork": True,
-        "render": False,
-    }
-
-    # if os.path.exists(RESULT_PATH):
-    #     with open(RESULT_PATH, 'r', encoding='utf-8') as f:
-    #         parameters = json.load(f)
-    #         options.update(parameters)
-    # else:
-    #     return
+        new_name = AGENT_PATH
 
     logger = "./logs/" + new_name
+    options = OPTIONS
+    options.update({"fork": True, "render": False})
+
     env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO.load(name, env=env, tensorboard_log=logger)
+    model = PPO.load(AGENT_PATH, env=env, tensorboard_log=logger)
     model.learn(total_timesteps=num_steps, progress_bar=True)
     model.save(new_name)
 
 
-def evaluate(name: str, num_steps: int=1000):
+def evaluate(name: str, num_steps: int=1000) -> None:
     """Evaluate a trained agent"""
 
-    options = {
-        "r_target": 10,
-        "r_collision": -10,
-        "r_time": -0.01,
-        "r_distance": -0.01,
-        "world_size": 10,
-        "num_static_obstacles": 5,
-        "bps_size": 50,
-        "fork": False,
-        "render": True,
-    }
-
-    # if os.path.exists(RESULT_PATH):
-    #     with open(RESULT_PATH, 'r', encoding='utf-8') as f:
-    #         parameters = json.load(f)
-    #         options.update(parameters)
-    # else:
-    #     return
+    options = OPTIONS
+    options.update({"fork": False, "render": True})
 
     env = environment_creation(num_workers=1, options=options)
-
-    # load the trained agent
     model = PPO.load(name, env)
 
     rewards, episodes = 0, 0
     obs = env.reset()
 
-    # draw policy
     draw_policy(model, obs, options["world_size"])
 
     for _ in range(num_steps):
@@ -170,7 +135,7 @@ def random_search(
     num_tests: int=100,
     num_train_steps: int=10000,
     num_workers: int=1
-):
+) -> None:
     """Select hyperparameters in search space randomly"""
 
     # specify search space
@@ -261,12 +226,11 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=500000, name=NAME, num_workers=8)
+    start_training(num_steps=1000000, num_workers=8)
 
     # continue_training(
-    #     num_steps=500000,
-    #     name=AGENT + NAME,
+    #     num_steps=1000000,
     #     num_workers=8
     # )
 
-    evaluate(AGENT + NAME)
+    evaluate(AGENT_PATH)
