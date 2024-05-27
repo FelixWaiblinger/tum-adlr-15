@@ -32,7 +32,8 @@ class NormalizeObservationWrapper(gym.Wrapper): #VecEnvWrapper):
 
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        obs = (obs - np.min(obs)) / (np.max(obs) - np.min(obs))
+        # obs = (obs - np.min(obs)) / (np.max(obs) - np.min(obs))
+        obs = obs/10
 
         return obs, reward, terminated, truncated, info
 
@@ -90,7 +91,7 @@ class HParamCallback(BaseCallback):
     Saves the hyperparameters at the beginning of training and logs them to Tensorboard.
     """
 
-    def __init__(self, env_params, agent_params):
+    def __init__(self, env_params : dict = {}, agent_params : dict={}):
         super().__init__()
         self.env_params = env_params
         self.agent_params = agent_params

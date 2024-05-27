@@ -10,12 +10,11 @@ from gymnasium import spaces
 from state_representation.bps import BPS, img2pc
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
-
 DEFAULT_OPTIONS = {
     "seed": 42,
-    "world_size": 10,
+    "world_size": 4,
     "step_length": 0.1,
-    "num_static_obstacles": 5,
+    "num_static_obstacles": 3,
     "num_dynamic_obstacles": 0,
     "min_size": 1,
     "max_size": 1,
@@ -33,9 +32,9 @@ class World2D(gym.Env):
     metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
 
     def __init__(self,
-        render_mode: str | None = None,
-        options: dict[str, Any] = None
-    ) -> None:
+                 render_mode: str | None = None,
+                 options: dict[str, Any] = None
+                 ) -> None:
         """Create new environment"""
 
         # fill missing options with default values
@@ -62,33 +61,39 @@ class World2D(gym.Env):
         self.observation_space = spaces.Dict({
             "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
-            "state": spaces.Box(
-                low=0, high=world_size * np.sqrt(2), # possible distances
-                shape=(options["bps_size"],), dtype=np.float32
-            )
+            # "state": spaces.Box(
+            #     low=0, high=world_size * np.sqrt(2), # possible distances
+            #     shape=(options["bps_size"],), dtype=np.float32
+            # )
+            "static_obstacles": spaces.Box(0, world_size, shape=(self.options["num_static_obstacles"], 2),
+                                           dtype=np.float32)
+
         })
 
         # setting "velocity" in x and y direction independently
         self.action_space = spaces.Box(
             low=-1, high=1, shape=(2,), dtype=np.float32
         )
+        pygame.init()
 
         # NOTE: not sure why this is here, remove if unnecessary
         # self._render_frame()
 
     def _get_observations(self):
-        bps_distances = self.bps.encode(self.pointcloud)
+        # bps_distances = self.bps.encode(self.pointcloud)
+        obstacles_positions = np.array(list(map(lambda obs: obs.position, self.static_obstacles)))
 
         return {
-            "agent": self.agent.position,
-            "target": self.target.position,
-            "state": bps_distances
+            "agent": self.agent.position.astype(np.float32),
+            "target": self.target.position.astype(np.float32),
+            # "state": bps_distances
+            "static_obstacles": obstacles_positions.astype(np.float32)
         }
 
     def reset(self, *,
-        seed: int | None = None,
-        options: dict[str, Any] = None
-    ) -> tuple[Any, dict[str, Any]]:
+              seed: int | None = None,
+              options: dict[str, Any] = None
+              ) -> tuple[Any, dict[str, Any]]:
         """Reset environment between episodes"""
 
         super().reset(seed=seed)
@@ -180,18 +185,19 @@ class World2D(gym.Env):
 
         terminated = win or collision
 
-        if self.render_mode == "human":
-            self._render_frame()
+        #if self.render_mode == "human":
+        self._render_frame()
 
         return observation, 0, terminated, False, info
 
     def render(self):
-        if self.render_mode == "rgb_array":
-            return self._render_frame()
+        # if self.render_mode == "rgb_array":
+        print("rendering")
+        return self._render_frame()
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
-            pygame.init() # pylint: disable=no-member
+            pygame.init()  # pylint: disable=no-member
             pygame.display.init()
             self.window = pygame.display.set_mode(
                 (self.window_size, self.window_size)
@@ -242,4 +248,4 @@ class World2D(gym.Env):
     def close(self):
         if self.window is not None:
             pygame.display.quit()
-            pygame.quit() # pylint: disable=no-member
+            pygame.quit()  # pylint: disable=no-member

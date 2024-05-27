@@ -55,17 +55,24 @@ class Agent(Entity):
 
         self.position = np.zeros(2)
         self.color = (0, 0, 255)
-        self.size = 0.3
+        self.size = np.array((0.3, 0.3))
 
-    def draw(self, canvas: pygame.Surface, world2canvas: float):
-        """Draw the agent on the canvas"""
-
-        self.visual = pygame.draw.circle(
-            canvas,
-            self.color,
-            (self.position * world2canvas).tolist(),
-            self.size * world2canvas
+        offset = np.array(self.size) / 2
+        self.visual = pygame.Rect(
+            self.position - offset,
+            self.size
         )
+
+
+    # def draw(self, canvas: pygame.Surface, world2canvas: float):
+    #     """Draw the agent on the canvas"""
+    #
+    #     self.visual = pygame.draw.circle(
+    #         canvas,
+    #         self.color,
+    #         (self.position * world2canvas).tolist(),
+    #         self.size * world2canvas
+    #     )
 
 
 class Target(Entity):

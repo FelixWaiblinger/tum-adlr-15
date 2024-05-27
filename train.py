@@ -6,21 +6,22 @@ import json
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 # from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
 from adlr_environments.wrapper import NormalizeObservationWrapper, RewardWrapper, HParamCallback
+
 # from adlr_environments.utils import draw_policy
 
 AGENT = "./agents/"
-NAME = "ppo_static_obstacles"
+NAME = "v4"
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
 
 
-def environment_creation(num_workers: int=1, options: dict | None=None):
+def environment_creation(num_workers: int = 1, options: dict | None = None):
     """Create environment"""
 
     def env_factory(render):
@@ -31,7 +32,7 @@ def environment_creation(num_workers: int=1, options: dict | None=None):
         env = FlattenObservation(env)
 
         # normalize observations
-        # env = NormalizeObservationWrapper(env)
+        env = NormalizeObservationWrapper(env)
 
         # custom reward function
         env = RewardWrapper(env, options)
@@ -50,74 +51,96 @@ def environment_creation(num_workers: int=1, options: dict | None=None):
         n_envs=num_workers,
         env_kwargs={"render": ("human" if render else "rgb_array")},
         vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        vec_env_kwargs={"start_method": "fork"} if fork else None
+        #vec_env_kwargs={"start_method": "fork"} if fork else None
     )
 
     return env
 
 
 def start_training(
-    num_steps: int,
-    name: str,
-    num_workers: int=1
+        num_steps: int,
+        name: str,
+        num_workers: int = 1
 ):
     """Train a new agent from scratch"""
 
     options = {
-        "r_target": 500,
-        "r_collision": -10,
+        "r_target": 100,
+        "r_collision": -50,
         "r_time": -0.005,
         "r_distance": -0.01,
-        "bps_size": 75
+        "bps_size": 75,
+        "render": False,
+        "fork": True,
+        "world_size": 10,
+        "num_static_obstacles": 0,
     }
-    logger = "./logs/" + name
+    agent_space = {
+        # "algorithm": [PPO], #, A2C, DDPG, SAC, TD3],
+        "learning_rate": [0.001, 0.0003, 0.0001],
+        "n_steps": [1024, 2048, 4096],
+        "batch_size": [32, 64, 128],
+        "n_epochs": [5, 10, 20],
+        "gamma": [0.95, 0.99, 1],
+        "gae_lambda": [0.9, 0.95, 0.99],
+    }
+
     env = environment_creation(num_workers=num_workers, options=options)
     # NOTE: consider multi input policy in combination with raw pointcloud
-    model = SAC("MlpPolicy", env, tensorboard_log=logger)
-    model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT + name)
+
+    logger = "./logs/" + NAME
+    model = PPO("MlpPolicy", env, tensorboard_log=logger)
+    model.learn(total_timesteps=num_steps, progress_bar=True, callback=HParamCallback(env_params=options))
+    model.save(AGENT + NAME)
 
 
 def continue_training(
-    num_steps: int,
-    name: str,
-    new_name: str=None,
-    num_workers: int=1
+        num_steps: int,
+        num_workers: int = 1
 ):
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
+    options = {
+        "r_target": 100,
+        "r_collision": -50,
+        "r_time": -0.005,
+        "r_distance": -0.01,
+        "bps_size": 75,
+        "render": False,
+        "fork": True,
+        "world_size": 10,
+        "num_static_obstacles": 0,
+    }
 
-    if not new_name:
-        new_name = name
 
-    logger = "./logs/" + new_name
-    env = environment_creation(num_workers=num_workers)
-    model = PPO.load(AGENT + name, env=env, tensorboard_log=logger)
-    model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT + new_name)
+    logger = "./logs/" + NAME
+    env = environment_creation(num_workers=num_workers, options=options)
+    model = PPO.load(AGENT + NAME, env=env, tensorboard_log=logger)
+    model.learn(total_timesteps=num_steps, progress_bar=True, callback=HParamCallback(env_params=options))
+    model.save(AGENT + NAME)
     # wrap the environment into observation wrapper
 
 
-def evaluate(num_steps: int=1000, num_workers: int=1):
+def evaluate(num_steps: int = 1000, num_workers: int = 1):
     """Evaluate a trained agent"""
 
     options = {
-        "r_target": 500,
-        "r_collision": -10,
+        "r_target": 100,
+        "r_collision": -100,
         "r_time": -0.005,
-        "r_distance": -0.01,
-        "world_size": 5,
-        "num_static_obstacles": 1,
-        "bps_size": 5,
-        "fork": False,
-        "render": True,
+        "r_distance": -0.001,
+        "bps_size": 75,
+        "render": False,
+        "fork": True,
+        "world_size": 10,
+        "num_static_obstacles": 0,
     }
 
     env = environment_creation(num_workers=num_workers, options=options)
 
     # load the trained agent
-    model = PPO.load(MODEL_PATH, env)
+    model = PPO.load(AGENT + NAME, env)
 
     rewards, episodes = 0, 0
     obs = env.reset()
@@ -130,7 +153,7 @@ def evaluate(num_steps: int=1000, num_workers: int=1):
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _ = env.step(action)
         rewards += reward
-        env.render()
+        env.render("human")
 
         if done:
             obs = env.reset()
@@ -140,10 +163,10 @@ def evaluate(num_steps: int=1000, num_workers: int=1):
 
 
 def random_search(
-    # search_space: dict,
-    num_tests: int=100,
-    num_train_steps: int=10000,
-    num_workers: int=1
+        # search_space: dict,
+        num_tests: int = 100,
+        num_train_steps: int = 10000,
+        num_workers: int = 1
 ) -> dict:
     """Select hyperparameters in search space randomly"""
 
@@ -164,7 +187,7 @@ def random_search(
         "r_distance": [-0.005],
         "world_size": [5],
         "num_static_obstacles": [1],
-        "bps_size": [5],#, 60, 90],
+        "bps_size": [5],  # , 60, 90],
         "fork": [True],
         "render": [False],
     }
@@ -200,7 +223,8 @@ def random_search(
         # create and train an agent
         logger = "./logs/" + NAME
         model = PPO("MlpPolicy", env, **agent_params, tensorboard_log=logger)
-        model.learn(total_timesteps=num_train_steps, progress_bar=True, callback=HParamCallback(env_params=env_params, agent_params=agent_params))
+        model.learn(total_timesteps=num_train_steps, progress_bar=True,
+                    callback=HParamCallback(env_params=env_params, agent_params=agent_params))
 
         try:
             model.learn(total_timesteps=num_train_steps, progress_bar=True)
@@ -240,5 +264,6 @@ if __name__ == '__main__':
     # perform random search
     # random_search(num_tests=1, num_train_steps=300000, num_workers=8)
 
-    # start_training(num_steps=100000, name=NAME)
-    evaluate()
+    start_training(num_steps=500000, name=NAME, num_workers=4)
+    #evaluate()
+    #continue_training(num_steps=800000, num_workers=4)
