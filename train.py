@@ -24,7 +24,7 @@ OPTIONS = {
     "r_target": 100,
     "r_collision": -10,
     "r_time": 1,
-    "r_distance": 10,
+    "r_distance": 5,
     "world_size": 8,
     "step_length": 0.5,
     "num_static_obstacles": 5,
@@ -115,7 +115,7 @@ def evaluate(name: str, num_steps: int=1000) -> None:
     env = environment_creation(num_workers=1, options=options)
     model = PPO.load(name, env)
 
-    rewards, episodes, wins = 0, 0, 0
+    rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
 
     draw_policy(model, obs, options["world_size"])
@@ -126,13 +126,19 @@ def evaluate(name: str, num_steps: int=1000) -> None:
         rewards += reward
         env.render("human")
 
-        if info[0]["win"]:
-            wins += 1 
         if done:
             episodes += 1
+            if info[0]["win"]:
+                wins += 1
+            elif info[0]["collision"]:
+                crashes += 1
+            else:
+                stuck += 1
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
+    print(f"Crashrate: {100 * (crashes / episodes):.2f}%")
+    print(f"Stuckrate: {100 * (stuck / episodes):.2f}%")
 
 
 def random_search(
@@ -231,8 +237,8 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    start_training(num_steps=1000000, num_workers=8)
+    # start_training(num_steps=2000000, num_workers=8)
 
-    # continue_training(num_steps=1000000, num_workers=8)
+    # continue_training(num_steps=2000000, num_workers=8)
 
     evaluate(AGENT_PATH)

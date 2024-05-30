@@ -66,13 +66,13 @@ class World2D(gym.Env):
         self.observation_space = spaces.Dict({
             "agent": spaces.Box(0, world_size, shape=(4,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
-            "state": spaces.Box(
-                0, world_size, shape=(obstacles * 2,), dtype=np.float32
-            )
             # "state": spaces.Box(
-            #     low=0, high=world_size * np.sqrt(2), # possible distances
-            #     shape=(options["bps_size"],), dtype=np.float32
+            #     0, world_size, shape=(obstacles * 2,), dtype=np.float32
             # )
+            "state": spaces.Box(
+                low=0, high=world_size * np.sqrt(2), # possible distances
+                shape=(options["bps_size"],), dtype=np.float32
+            )
         })
 
         # setting "velocity" in x and y direction independently
@@ -81,9 +81,10 @@ class World2D(gym.Env):
         )
 
     def _get_observations(self):
-        # bps_distances = self.bps.encode(self.pointcloud)
-        obstacles = np.array([x.position for x in self.static_obstacles])
-        obstacles = obstacles.flatten().astype(np.float32)
+        self.pointcloud = np.array([o.position for o in self.static_obstacles])
+        bps_distances = self.bps.encode(self.pointcloud)
+        # obstacles = np.array([x.position for x in self.static_obstacles])
+        # obstacles = obstacles.flatten().astype(np.float32)
         agent = np.concatenate([
             self.agent.position,
             self.agent.speed
@@ -92,8 +93,8 @@ class World2D(gym.Env):
         return {
             "agent": agent,
             "target": self.target.position,
-            # "state": bps_distances
-            "state": obstacles
+            "state": bps_distances
+            # "state": obstacles
         }
 
     def reset(self, *,
@@ -138,14 +139,16 @@ class World2D(gym.Env):
         self.timestep = 0
 
         observation = self._get_observations()
+        distance = np.linalg.norm(
+            self.agent.position - self.target.position,
+            ord=2
+        )
+
         info = {
             "win": False,
             "collision": False,
             "timestep": self.timestep,
-            "distance": np.linalg.norm(
-                self.agent.position - self.target.position,
-                ord=2
-            ),
+            "distance": distance
         }
 
         return observation, info
