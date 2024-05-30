@@ -15,7 +15,7 @@ from adlr_environments.wrapper import RewardWrapper, HParamCallback
 from adlr_environments.utils import to_py_dict, linear, draw_policy
 
 
-AGENT = "agent_speed"
+AGENT = "activity"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 RESULT_PATH = "./agents/random_search_results.json"
@@ -78,7 +78,7 @@ def start_training(
 
     env = environment_creation(num_workers=num_workers, options=options)
     model = PPO("MlpPolicy", env, tensorboard_log=logger,
-                n_steps=256, batch_size=128, learning_rate=linear(0.001))
+                n_steps=256, batch_size=1024, learning_rate=linear(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True,
                 callback=HParamCallback(env_params=options))
     model.save(AGENT_PATH)
@@ -151,7 +151,7 @@ def random_search(
 
     # specify search space
     # agent_space = {
-    #     "learning_rate": [linear_schedule(0.001), linear_schedule(0.01)],
+    #     "learning_rate": [linear(0.001), linear(0.01)],
     #     "n_steps": [2048],
     #     "batch_size": [32, 64, 128],
     #     "n_epochs": [5],
@@ -159,7 +159,7 @@ def random_search(
     #     "gae_lambda": [0.95, 0.99],
     # }
     agent_space = {
-        "learning_rate": [linear_schedule(0.001), linear_schedule(0.01)],
+        "learning_rate": [linear(0.001), linear(0.01)],
         "buffer_size": [500000, 1000000],
         "learning_starts": [50, 100, 200],
         "batch_size": [128, 256, 512],
@@ -237,8 +237,8 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=2000000, num_workers=8)
+    # start_training(num_steps=2500000, num_workers=8)
 
-    # continue_training(num_steps=2000000, num_workers=8)
+    # continue_training(num_steps=1000000, num_workers=8)
 
     evaluate(AGENT_PATH)

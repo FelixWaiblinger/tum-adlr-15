@@ -5,7 +5,7 @@ import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.utils import MAX_EPISODE_STEPS
+from adlr_environments.utils import MAX_EPISODE_STEPS, eucl
 
 
 class NormalizeObservationWrapper(gym.Wrapper): #VecEnvWrapper):
@@ -36,6 +36,8 @@ class RewardWrapper(gym.Wrapper): #VecEnvWrapper):
         self.r_collision = options.get("r_collision", -1)
         self.r_time = options.get("r_time", 0)
         self.r_distance = options.get("r_distance", 0)
+        self.pos_buffer = []
+        self.buffer_length = 10
         super().__init__(env)
 
     def step(self, action):
@@ -43,16 +45,32 @@ class RewardWrapper(gym.Wrapper): #VecEnvWrapper):
 
         obs, _, terminated, truncated, info = self.env.step(action)
 
-        r_dist = np.exp(-info["distance"])
-        r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.5)
+        # # store most recent 10 agent positions
+        # pos = obs[:2]
+        # self.pos_buffer.append(pos)
+        # if len(self.pos_buffer) > self.buffer_length:
+        #     self.pos_buffer.pop(0)
+        
+        # # penalize low activity
+        # r_active = 0.1 * sum(-1 for p in self.pos_buffer if eucl(p, pos) < 0.1)
 
-        time_factor = 1.1 - (info["timestep"] / MAX_EPISODE_STEPS)
+        # reward minimizing distance to target
+        r_dist = np.exp(-info["distance"])
+        r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.2)
+
+        # reward maximizing distance to obstacles
+        r_obs = -np.exp(-info["obs_distance"])
+        r_obs = self.r_distance * np.clip(r_obs, 0, -self.r_collision * 0.9)
+
+        # scale distance rewards by simulation time
+        time_factor = np.exp(-0.1 - 2 * info["timestep"] / MAX_EPISODE_STEPS)
         time_factor = self.r_time * time_factor
 
+        # reward target reaching and obstacle avoidance
         r_win = self.r_target if info["win"] else 0
         r_crash = self.r_collision if info["collision"] else 0
 
-        reward = (r_dist * time_factor) + r_win + r_crash
+        reward = ((r_dist + r_obs) * time_factor) + r_win + r_crash #+ r_active
 
         return obs, reward, terminated, truncated, info
 

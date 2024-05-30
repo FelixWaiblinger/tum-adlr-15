@@ -30,6 +30,11 @@ def draw_policy(
     plt.show()
 
 
+def eucl(x: np.ndarray, y: np.ndarray) -> float:
+    """Return euclidean distance between positions x and y"""
+    return np.linalg.norm(x - y, ord=2)
+
+
 def linear(initial_value: float) -> Callable[[float], float]:
     """Linear learning rate schedule (current learning rate depending on
     remaining progress)
