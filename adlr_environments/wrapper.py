@@ -5,6 +5,8 @@ import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
+from adlr_environments.utils import MAX_EPISODE_STEPS
+
 
 class NormalizeObservationWrapper(gym.Wrapper): #VecEnvWrapper):
     """Normalize bps distance observations into the range of [0, 1]"""
@@ -41,11 +43,16 @@ class RewardWrapper(gym.Wrapper): #VecEnvWrapper):
 
         obs, _, terminated, truncated, info = self.env.step(action)
 
-        reward = 0
-        reward += self.r_target if info["win"] else 0
-        reward += self.r_collision if info["collision"] else 0
-        reward += self.r_time * np.exp(-info["timestep"])
-        reward += self.r_distance * np.exp(-info["distance"])
+        r_dist = np.exp(-info["distance"])
+        r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.5)
+
+        time_factor = 1.1 - (info["timestep"] / MAX_EPISODE_STEPS)
+        time_factor = self.r_time * time_factor
+
+        r_win = self.r_target if info["win"] else 0
+        r_crash = self.r_collision if info["collision"] else 0
+
+        reward = (r_dist * time_factor) + r_win + r_crash
 
         return obs, reward, terminated, truncated, info
 

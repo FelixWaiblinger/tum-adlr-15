@@ -6,28 +6,29 @@ from typing import Dict
 
 import numpy as np
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation
+from gymnasium.wrappers import FlattenObservation, NormalizeObservation
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
 from adlr_environments.wrapper import RewardWrapper, HParamCallback
-from adlr_environments.utils import to_py_dict, linear_schedule, draw_policy
+from adlr_environments.utils import to_py_dict, linear, draw_policy
 
 
-AGENT = "no_bps"
+AGENT = "agent_speed"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
 OPTIONS = {
-    "r_target": 10,
+    "r_target": 100,
     "r_collision": -10,
-    "r_time": 5,
-    "r_distance": 2,
-    "world_size": 10,
+    "r_time": 1,
+    "r_distance": 10,
+    "world_size": 8,
+    "step_length": 0.5,
     "num_static_obstacles": 5,
-    "bps_size": 50,
+    "bps_size": 40,
 }
 
 
@@ -41,7 +42,8 @@ def environment_creation(num_workers: int=1, options: Dict=None):
         # flatten observations
         env = FlattenObservation(env)
 
-        # normalize observations NOTE: tests indicate normalizing is bad
+        # normalize observations
+        # NOTE: tests indicate normalizing is bad
         # env = NormalizeObservation(env)
 
         # custom reward function
@@ -76,7 +78,7 @@ def start_training(
 
     env = environment_creation(num_workers=num_workers, options=options)
     model = PPO("MlpPolicy", env, tensorboard_log=logger,
-                batch_size=128, learning_rate=linear_schedule(0.001))
+                n_steps=256, batch_size=128, learning_rate=linear(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True,
                 callback=HParamCallback(env_params=options))
     model.save(AGENT_PATH)
@@ -113,21 +115,24 @@ def evaluate(name: str, num_steps: int=1000) -> None:
     env = environment_creation(num_workers=1, options=options)
     model = PPO.load(name, env)
 
-    rewards, episodes = 0, 0
+    rewards, episodes, wins = 0, 0, 0
     obs = env.reset()
 
     draw_policy(model, obs, options["world_size"])
 
     for _ in range(num_steps):
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _ = env.step(action)
+        obs, reward, done, info = env.step(action)
         rewards += reward
         env.render("human")
 
+        if info[0]["win"]:
+            wins += 1 
         if done:
             episodes += 1
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
+    print(f"Successrate: {100 * (wins / episodes):.2f}%")
 
 
 def random_search(
@@ -228,9 +233,6 @@ if __name__ == '__main__':
 
     start_training(num_steps=1000000, num_workers=8)
 
-    # continue_training(
-    #     num_steps=1000000,
-    #     num_workers=8
-    # )
+    # continue_training(num_steps=1000000, num_workers=8)
 
     evaluate(AGENT_PATH)

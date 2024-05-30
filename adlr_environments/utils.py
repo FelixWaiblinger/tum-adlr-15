@@ -6,6 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+MAX_EPISODE_STEPS = 200
+
+
 def draw_policy(
     agent,
     observation: np.ndarray,
@@ -27,7 +30,7 @@ def draw_policy(
     plt.show()
 
 
-def linear_schedule(initial_value: float) -> Callable[[float], float]:
+def linear(initial_value: float) -> Callable[[float], float]:
     """Linear learning rate schedule (current learning rate depending on
     remaining progress)
     """

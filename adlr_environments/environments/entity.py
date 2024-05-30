@@ -56,9 +56,16 @@ class Agent(Entity):
     def __init__(self) -> None:
         """Create a new agent"""
 
-        self.position = np.zeros(2)
+        self.position = np.zeros(2, dtype=np.float32)
+        self.speed = np.zeros(2, dtype=np.float32)
         self.color = (0, 0, 255)
         self.size = 0.3
+
+    def reset(self, world_size: float, illegal_positions: list, generator):
+        """Reset the entity for the next episode"""
+
+        super().reset(world_size, illegal_positions, generator)
+        self.speed = np.zeros(2, dtype=np.float32)
 
 
 class Target(Entity):

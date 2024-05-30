@@ -10,6 +10,7 @@ from gymnasium import spaces
 
 from state_representation.bps import BPS, img2pc
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
+from adlr_environments.utils import MAX_EPISODE_STEPS
 
 
 DEFAULT_OPTIONS = {
@@ -63,7 +64,7 @@ class World2D(gym.Env):
         self.timestep = 0
 
         self.observation_space = spaces.Dict({
-            "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
+            "agent": spaces.Box(0, world_size, shape=(4,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "state": spaces.Box(
                 0, world_size, shape=(obstacles * 2,), dtype=np.float32
@@ -83,9 +84,13 @@ class World2D(gym.Env):
         # bps_distances = self.bps.encode(self.pointcloud)
         obstacles = np.array([x.position for x in self.static_obstacles])
         obstacles = obstacles.flatten().astype(np.float32)
+        agent = np.concatenate([
+            self.agent.position,
+            self.agent.speed
+        ], dtype=np.float32)
         
         return {
-            "agent": self.agent.position,
+            "agent": agent,
             "target": self.target.position,
             # "state": bps_distances
             "state": obstacles
@@ -145,13 +150,14 @@ class World2D(gym.Env):
 
         return observation, info
 
-    def step(self, action):
+    def step(self, action: np.ndarray):
         """Perform one time step"""
 
         world_size = self.options["world_size"]
         step_length = self.options["step_length"]
 
         # move agent according to chosen action
+        self.agent.speed = action.astype(np.float32)
         self.agent.position = np.clip(
             self.agent.position + step_length * action,
             0, world_size, dtype=np.float32
@@ -168,21 +174,23 @@ class World2D(gym.Env):
         obstacles = self.static_obstacles + self.dynamic_obstacles
         collision = any(obs.collision(self.agent) for obs in obstacles)
         
-        terminated = win or collision
         self.timestep += 1
+        terminated = win or collision
+        truncated = self.timestep >= MAX_EPISODE_STEPS
+        distance = np.linalg.norm(
+            self.agent.position - self.target.position,
+            ord=2
+        )
 
         observation = self._get_observations()
         info = {
             "win": win,
             "collision": collision,
             "timestep": self.timestep,
-            "distance": np.linalg.norm(
-                self.agent.position - self.target.position,
-                ord=2
-            )
+            "distance": distance
         }
 
-        return observation, 0, terminated, False, info
+        return observation, 0, terminated, truncated, info
 
     def render(self):
         if self.render_mode == "human":
