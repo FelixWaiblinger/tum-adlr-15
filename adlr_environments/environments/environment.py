@@ -29,13 +29,19 @@ DEFAULT_OPTIONS = {
     "uncertainty": False
 }
 
+FIXED_POSITIONS = {
+    "agent": np.array([1, 1]),
+    "target": np.array([8, 8]),
+    "static_obstacle": [np.array([2.5, 2.5]), np.array([3, 3]), np.array([4, 4]), np.array([8, 7]), np.array([7, 8])]
+}
+
 
 class World2D(gym.Env):
     """Simple 2D environment including agent, target and a discrete action
     space
     """
 
-    metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
+    metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 30}
 
     def __init__(self,
         render_mode: str=None,
@@ -142,6 +148,7 @@ class World2D(gym.Env):
             "obs_distance": obs_distance,
             "wall_collision": wall_collision
         }
+
 
     def reset(self, *,
         seed: int=None,
@@ -265,6 +272,9 @@ class World2D(gym.Env):
 
         observation = self._get_observations()
         info = self._get_infos()
+
+        if self.render_mode == "human":
+            self.render()
 
         return observation, 0, terminated, truncated, info
 

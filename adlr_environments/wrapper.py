@@ -251,7 +251,7 @@ class HParamCallback(BaseCallback):
     Saves the hyperparameters at the beginning of training and logs them to Tensorboard.
     """
 
-    def __init__(self, env_params : dict = {}, agent_params : dict={}):
+    def __init__(self, env_params: dict = {}, agent_params: dict = {}):
         super().__init__()
         self.env_params = env_params
         self.agent_params = agent_params
@@ -266,7 +266,7 @@ class HParamCallback(BaseCallback):
         hparam_dict.update(self.env_params)
         hparam_dict.update(self.agent_params)
 
-        #transform dictionary to python types
+        # transform dictionary to python types
         hparam_dict = {k: to_python_type(v) for k, v in hparam_dict.items()}
 
         # define the metrics that will appear in the HPARAMS Tensorboard tab

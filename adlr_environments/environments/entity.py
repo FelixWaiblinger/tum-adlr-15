@@ -16,6 +16,8 @@ class Entity(ABC):
     position: np.ndarray
     color: Color
     size: float
+    start_position: np.ndarray
+    random: bool
 
     def reset(self, entities: list, generator: Generator):
         """Reset the entity for the next episode"""
