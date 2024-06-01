@@ -85,18 +85,15 @@ class World2D(gym.Env):
         bps_distances = self.bps.encode(self.pointcloud)
         # obstacles = np.array([x.position for x in self.static_obstacles])
         # obstacles = obstacles.flatten().astype(np.float32)
-        agent = np.concatenate([
-            self.agent.position,
-            self.agent.speed
-        ], dtype=np.float32)
-        
+        agent = np.concatenate([self.agent.position,self.agent.speed], dtype=np.float32)
+
         return {
             "agent": agent,
             "target": self.target.position,
             "state": bps_distances
             # "state": obstacles
         }
-    
+
     def _get_infos(self, win: bool=False, collision: bool=False):
         obstacles = self.static_obstacles + self.dynamic_obstacles
 
@@ -119,14 +116,15 @@ class World2D(gym.Env):
         super().reset(seed=seed)
         self.options.update((options if options else {}))
 
-        illegal_positions = []
         world_size = self.options["world_size"]
+        self.target.position = (world_size - 1.5) * np.ones(2, dtype=np.float32)
+        illegal_positions = [self.target.position]
 
         # reset agent
         self.agent.reset(world_size, illegal_positions, self.np_random)
 
         # reset target
-        self.target.reset(world_size, illegal_positions, self.np_random)
+        # self.target.reset(world_size, illegal_positions, self.np_random)
 
         # reset static obstacles
         self.static_obstacles = []

@@ -50,20 +50,20 @@ class RewardWrapper(gym.Wrapper): #VecEnvWrapper):
         # self.pos_buffer.append(pos)
         # if len(self.pos_buffer) > self.buffer_length:
         #     self.pos_buffer.pop(0)
-        
+
         # # penalize low activity
         # r_active = 0.1 * sum(-1 for p in self.pos_buffer if eucl(p, pos) < 0.1)
 
         # reward minimizing distance to target
         r_dist = np.exp(-info["distance"])
-        r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.2)
+        r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.1)
 
         # reward maximizing distance to obstacles
         r_obs = -np.exp(-info["obs_distance"])
-        r_obs = self.r_distance * np.clip(r_obs, 0, -self.r_collision * 0.9)
+        r_obs = self.r_distance * np.clip(r_obs, self.r_collision * 0.1, 0)
 
         # scale distance rewards by simulation time
-        time_factor = np.exp(-0.1 - 2 * info["timestep"] / MAX_EPISODE_STEPS)
+        time_factor = np.exp(-0.01 - info["timestep"] / MAX_EPISODE_STEPS)
         time_factor = self.r_time * time_factor
 
         # reward target reaching and obstacle avoidance
