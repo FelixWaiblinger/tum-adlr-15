@@ -29,11 +29,8 @@ class BPS:
     def encode(self, pointcloud: np.ndarray) -> np.ndarray:
         """Compute minimal distances between basis points and a pointcloud"""
 
-        try:
-            distances = cdist(self.points, pointcloud, "euclidean")
-        except ValueError: # workaround to maybe stop crashing
-            print("ValueError in BPS encode")
-            distances = np.zeros((len(self.points), len(self.points)))
+        assert pointcloud.size > 0, "The pointcloud must not be empty!"
+        distances = cdist(self.points, pointcloud, "euclidean")
 
         # ====================================================================
         # NOTE: uncomment to show bps for debugging purposes
@@ -54,7 +51,7 @@ class BPS:
         # print(res)
         # ====================================================================
 
-        return np.min(distances, axis=1).astype(np.float32)
+        return np.min(distances, axis=1)
 
 def img2pc(image: np.ndarray, world_size: float=1) -> np.ndarray:
     """Convert an image (w, h, 3) of obstacles to a 2D pointcloud (p, 2)"""
