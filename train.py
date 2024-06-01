@@ -14,25 +14,25 @@ import adlr_environments  # pylint: disable=unused-import
 from adlr_environments.wrapper import RewardWrapper, HParamCallback
 from adlr_environments.utils import to_py_dict, linear, draw_policy
 
-
-AGENT = "activity"
+AGENT = "p4"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
 OPTIONS = {
-    "r_target": 100,
-    "r_collision": -10,
-    "r_time": 1,
-    "r_distance": 5,
-    "world_size": 8,
-    "step_length": 0.5,
+    "r_target": 10,
+    "r_collision": -1,
+    "r_time": -0.001,
+    "r_distance": -0.001,
+    "r_wall_collision": -0.1,
+    "world_size": 10,
+    "step_length": 0.3,
     "num_static_obstacles": 5,
     "bps_size": 40,
 }
 
 
-def environment_creation(num_workers: int=1, options: Dict=None):
+def environment_creation(num_workers: int = 1, options: Dict = None):
     """Create environment"""
 
     def env_factory(render):
@@ -44,14 +44,14 @@ def environment_creation(num_workers: int=1, options: Dict=None):
 
         # normalize observations
         # NOTE: tests indicate normalizing is bad
-        # env = NormalizeObservation(env)
+        env = NormalizeObservation(env)
 
         # custom reward function
         env = RewardWrapper(env, options)
 
         return env
 
-    render = options.pop("render")
+    render = options["render"]
     fork = options.pop("fork")
 
     # single/multi threading
@@ -60,15 +60,15 @@ def environment_creation(num_workers: int=1, options: Dict=None):
         n_envs=num_workers,
         env_kwargs={"render": ("human" if render else "rgb_array")},
         vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        vec_env_kwargs={"start_method": "fork"} if fork else None
+        # vec_env_kwargs={"start_method": "fork"} if fork else None
     )
 
     return env
 
 
 def start_training(
-    num_steps: int,
-    num_workers: int=1
+        num_steps: int,
+        num_workers: int = 1
 ) -> None:
     """Train a new agent from scratch"""
 
@@ -77,44 +77,10 @@ def start_training(
     options.update({"fork": True, "render": False})
 
     env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO("MlpPolicy", env, tensorboard_log=logger,
-                n_steps=256, batch_size=1024, learning_rate=linear(0.001))
-    model.learn(total_timesteps=num_steps, progress_bar=True,
-                callback=HParamCallback(env_params=options))
+    model = PPO("MlpPolicy", env, tensorboard_log=logger,) #n_steps=256, batch_size=1024)  # learning_rate=linear(0.001)) tensorboard_log=logger,
+    model.learn(total_timesteps=num_steps, )#progress_bar=True,
+                #callback=HParamCallback(env_params=options))
     model.save(AGENT_PATH)
-
-
-def continue_training(
-    num_steps: int,
-    new_name: str=None,
-    num_workers: int=1
-) -> None:
-    """Resume training aka. perform additional training steps and update an
-    existing agent
-    """
-
-    if not new_name:
-        new_name = AGENT_PATH
-
-    logger = "./logs/" + new_name
-    options = OPTIONS
-    options.update({"fork": True, "render": False})
-
-    env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO.load(AGENT_PATH, env=env, tensorboard_log=logger)
-    model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(new_name)
-
-
-def evaluate(name: str, num_steps: int=1000) -> None:
-    """Evaluate a trained agent"""
-
-    options = OPTIONS
-    options.update({"fork": False, "render": True})
-
-    env = environment_creation(num_workers=1, options=options)
-    model = PPO.load(name, env)
-
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
 
@@ -135,6 +101,60 @@ def evaluate(name: str, num_steps: int=1000) -> None:
             else:
                 stuck += 1
 
+
+
+
+def continue_training(
+        num_steps: int,
+        new_name: str = None,
+        num_workers: int = 1
+) -> None:
+    """Resume training aka. perform additional training steps and update an
+    existing agent
+    """
+
+    if not new_name:
+        new_name = AGENT_PATH
+
+    logger = "./logs/" + new_name
+    options = OPTIONS
+    options.update({"fork": True, "render": True})
+
+    env = environment_creation(num_workers=num_workers, options=options)
+    model = PPO.load(AGENT_PATH, env=env, tensorboard_log=logger)
+    model.learn(total_timesteps=num_steps, progress_bar=True)
+    model.save(new_name)
+
+
+def evaluate(name: str, num_steps: int = 1000) -> None:
+    """Evaluate a trained agent"""
+
+    options = OPTIONS
+    options.update({"fork": False, "render": True})
+
+    env = environment_creation(num_workers=1, options=options)
+    model = PPO.load(name, env)
+
+    rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
+    obs = env.reset()
+
+    draw_policy(model, obs, options["world_size"])
+
+    for _ in range(num_steps):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        rewards += reward
+        #env.render("human")
+
+        if done:
+            episodes += 1
+            if info[0]["win"]:
+                wins += 1
+            elif info[0]["collision"]:
+                crashes += 1
+            else:
+                stuck += 1
+
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
     print(f"Crashrate: {100 * (crashes / episodes):.2f}%")
@@ -142,10 +162,10 @@ def evaluate(name: str, num_steps: int=1000) -> None:
 
 
 def random_search(
-    # search_space: dict,
-    num_tests: int=100,
-    num_train_steps: int=10000,
-    num_workers: int=1
+        # search_space: dict,
+        num_tests: int = 100,
+        num_train_steps: int = 10000,
+        num_workers: int = 1
 ) -> None:
     """Select hyperparameters in search space randomly"""
 
@@ -175,7 +195,7 @@ def random_search(
         "r_distance": [-0.01],
         "world_size": [8],
         "num_static_obstacles": [3],
-        "bps_size": [15, 20, 25],#, 60, 90],
+        "bps_size": [15, 20, 25],  # , 60, 90],
         "fork": [True],
         "render": [False],
     }
@@ -237,8 +257,8 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=2500000, num_workers=8)
+    #start_training(num_steps=200000, num_workers=4)
 
-    # continue_training(num_steps=1000000, num_workers=8)
+    #continue_training(num_steps=1000000, num_workers=8)
 
     evaluate(AGENT_PATH)

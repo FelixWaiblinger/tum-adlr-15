@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-MAX_EPISODE_STEPS = 200
+MAX_EPISODE_STEPS = 400
 
 
 def draw_policy(

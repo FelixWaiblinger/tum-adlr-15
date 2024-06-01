@@ -12,6 +12,8 @@ class Entity(ABC):
     position: np.ndarray
     color: tuple
     size: float
+    start_position: np.ndarray
+    random: bool
 
     def reset(self, world_size: float, illegal_positions: list, generator):
         """Reset the entity for the next episode"""
@@ -19,24 +21,27 @@ class Entity(ABC):
         def too_close(p1, p2):
             return np.all(np.abs(p1 - p2) < self.size)
 
-        while True:
-            position = generator.uniform(
-                low=0, high=world_size, size=2
-            ).astype(np.float32)
+        if self.random:
+            while True:
+                position = generator.uniform(
+                    low=0, high=world_size, size=2
+                ).astype(np.float32)
 
-            illegal = any(too_close(position, p) for p in illegal_positions)
+                illegal = any(too_close(position, p) for p in illegal_positions)
 
-            if not illegal:
-                self.position = position
-                illegal_positions.append(self.position)
-                break
+                if not illegal:
+                    self.position = position
+                    illegal_positions.append(self.position)
+                    break
+        else:
+            self.position = self.start_position
 
     def collision(self, other) -> bool:
         """Check for a collision"""
 
         sizes = self.size + other.size
         distance = np.linalg.norm(self.position - other.position, ord=2)
-        
+
         return distance < sizes
 
     def draw(self, canvas: pygame.Surface, world2canvas: float):
@@ -45,7 +50,7 @@ class Entity(ABC):
         pygame.draw.circle(
             canvas,
             self.color,
-            (self.position * world2canvas), #.tolist(),
+            (self.position * world2canvas).tolist(),
             self.size * world2canvas
         )
 
@@ -53,13 +58,15 @@ class Entity(ABC):
 class Agent(Entity):
     """2D agent"""
 
-    def __init__(self) -> None:
+    def __init__(self, position, random) -> None:
         """Create a new agent"""
 
         self.position = np.zeros(2, dtype=np.float32)
         self.speed = np.zeros(2, dtype=np.float32)
         self.color = (0, 0, 255)
-        self.size = 0.3
+        self.size = 0.2
+        self.start_position = position
+        self.random = random
 
     def reset(self, world_size: float, illegal_positions: list, generator):
         """Reset the entity for the next episode"""
@@ -67,33 +74,52 @@ class Agent(Entity):
         super().reset(world_size, illegal_positions, generator)
         self.speed = np.zeros(2, dtype=np.float32)
 
+    def wall_collision(self, world_size: float):
+        x_position = self.position[0]
+        y_position = self.position[1]
+
+        if x_position < self.size:
+            return True
+        elif x_position > world_size - self.size:
+            return True
+        elif y_position < self.size:
+            return True
+        elif y_position > world_size - self.size:
+            return True
+        else:
+            return False
+
 
 class Target(Entity):
     """2D Target box"""
 
-    def __init__(self) -> None:
+    def __init__(self, random, position) -> None:
         """Create a new target"""
 
         self.position = np.zeros(2)
         self.color = (255, 0, 0)
         self.size = 0.5
+        self.start_position = position
+        self.random = random
 
 
 class StaticObstacle(Entity):
     """Static obstacle"""
 
-    def __init__(self) -> None:
+    def __init__(self, random, position) -> None:
         """Create a new static obstacle"""
 
         self.position = np.zeros(2)
         self.color = (0, 0, 0)
         self.size = 0.5
+        self.start_position = position
+        self.random = random
 
 
 class DynamicObstacle(Entity):
     """Dynamic obstacle"""
 
-    def __init__(self, speed: tuple=(1, 1)) -> None:
+    def __init__(self, speed: tuple = (1, 1)) -> None:
         """Create a new dynamic obstacle"""
 
         self.position = np.zeros(2)
@@ -101,7 +127,7 @@ class DynamicObstacle(Entity):
         self.size = 0.5
         self.speed = np.array(speed)
 
-    def move(self, bounds=None): #: tuple | None=None):
+    def move(self, bounds=None):  #: tuple | None=None):
         """Move the dynamic obstacle"""
 
         # bounded movement
