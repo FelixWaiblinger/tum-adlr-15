@@ -182,6 +182,8 @@ class World2D(gym.Env):
 
     def render(self):
         if self.render_mode == "human":
+            self._render_frame()
+        if self.render_mode == "rgb_array":
             return self._render_frame()
 
     def _render_frame(self):
