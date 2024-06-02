@@ -18,6 +18,7 @@ env = gym.make(
     options=options
 )
 
+
 observation, info = env.reset(seed=42)
 
 print(observation)

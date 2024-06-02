@@ -30,9 +30,9 @@ DEFAULT_OPTIONS = {
 }
 
 FIXED_POSITIONS = {
-    "agent": np.array([1, 1]),
-    "target": np.array([8, 8]),
-    "static_obstacle": [np.array([2.5, 2.5]), np.array([3, 3]), np.array([4, 4]), np.array([8, 7]), np.array([7, 8])]
+    "agent": np.array([1, 1], dtype=np.float32),
+    "target": np.array([4, 4], dtype=np.float32),
+    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32), np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32), np.array([7, 8], dtype=np.float32)]
 }
 
 
