@@ -2,13 +2,17 @@
 
 import gymnasium as gym
 import adlr_environments # pylint: disable=unused-import
+from stable_baselines3.common.env_checker import check_env
 
 options = {
     "num_static_obstacles": 5,
     "num_dynamic_obstacles": 0,
+    "world_size" : 5
 }
 
 env = gym.make('World2D-v0', render_mode='human', options=options)
+check_env(env)
+
 
 observation, info = env.reset(seed=42)
 

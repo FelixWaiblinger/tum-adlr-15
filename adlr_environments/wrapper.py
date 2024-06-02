@@ -21,7 +21,8 @@ class NormalizeObservationWrapper(gym.Wrapper):  # VecEnvWrapper):
 
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        obs = (obs - np.min(obs)) / (np.max(obs) - np.min(obs))
+        #obs = (obs - np.min(obs)) / (np.max(obs) - np.min(obs))
+        obs = obs/10 - 1
 
         return obs, reward, terminated, truncated, info
 
@@ -36,7 +37,7 @@ class RewardWrapper(gym.Wrapper):  # VecEnvWrapper):
         self.r_collision = options.get("r_collision", -1)
         self.r_time = options.get("r_time", 0)
         self.r_distance = options.get("r_distance", 0)
-        self.r_wall_collision = options.get("wall_collision", 0)
+        self.r_wall_collision = options.get("r_wall_collision", 0)
         super().__init__(env)
 
     def step(self, action):
@@ -49,7 +50,7 @@ class RewardWrapper(gym.Wrapper):  # VecEnvWrapper):
         reward += self.r_collision if info["collision"] else 0
         reward += self.r_time
         reward += self.r_distance * info["distance"]
-        reward += self.r_wall_collision * info["wall_collision"]
+        reward += self.r_wall_collision if info["wall_collision"] else 0
 
         if info["win"]:
             print("winnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn")
@@ -59,6 +60,7 @@ class RewardWrapper(gym.Wrapper):  # VecEnvWrapper):
         #     print("collision")
         # if info["wall_collision"]:
         #     print("wall_collision")
+        #print("reward:", reward)
 
         return obs, reward, terminated, truncated, info
 

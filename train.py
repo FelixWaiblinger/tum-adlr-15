@@ -7,11 +7,11 @@ from typing import Dict
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation, NormalizeObservation
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import RewardWrapper, HParamCallback
+from adlr_environments.wrapper import RewardWrapper, HParamCallback, NormalizeObservationWrapper
 from adlr_environments.utils import to_py_dict, linear, draw_policy
 
 AGENT = "p4"
@@ -21,18 +21,18 @@ RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
 OPTIONS = {
     "r_target": 10,
-    "r_collision": -1,
-    "r_time": -0.001,
-    "r_distance": -0.001,
+    "r_collision": -5,
+    "r_time": 0,
+    "r_distance": 0,
     "r_wall_collision": -0.1,
-    "world_size": 10,
-    "step_length": 0.3,
-    "num_static_obstacles": 5,
+    "world_size": 5,
+    "step_length": 0.2,
+    "num_static_obstacles": 4,
     "bps_size": 40,
 }
 
 
-def environment_creation(num_workers: int = 1, options: Dict = None):
+def environment_creation(num_workers: int = 1, options: Dict = None, evaluation: bool = False):
     """Create environment"""
 
     def env_factory(render):
@@ -42,26 +42,34 @@ def environment_creation(num_workers: int = 1, options: Dict = None):
         # flatten observations
         env = FlattenObservation(env)
 
+
         # normalize observations
         # NOTE: tests indicate normalizing is bad
-        env = NormalizeObservation(env)
-
-        # custom reward function
+        env = NormalizeObservationWrapper(env)
         env = RewardWrapper(env, options)
+        # custom reward function
+
 
         return env
 
-    render = options["render"]
-    fork = options.pop("fork")
+    # render = options["render"]
+    # fork = options.pop("fork")
+    #
+    # # # single/multi threading
+    # env = make_vec_env(
+    #     env_factory,
+    #     n_envs=num_workers,
+    #     env_kwargs={"render": ("human" if render else "rgb_array")},
+    #     vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
+    #     # vec_env_kwargs={"start_method": "fork"} if fork else None
+    # )
+    #
+    # if not evaluation:
+    #     env = VecNormalize(env)
+    # else:
+    #     env = VecNormalize.load("./env1", env)
 
-    # single/multi threading
-    env = make_vec_env(
-        env_factory,
-        n_envs=num_workers,
-        env_kwargs={"render": ("human" if render else "rgb_array")},
-        vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        # vec_env_kwargs={"start_method": "fork"} if fork else None
-    )
+    env = env_factory("rgb_array")
 
     return env
 
@@ -76,30 +84,13 @@ def start_training(
     options = OPTIONS
     options.update({"fork": True, "render": False})
 
-    env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO("MlpPolicy", env, tensorboard_log=logger,) #n_steps=256, batch_size=1024)  # learning_rate=linear(0.001)) tensorboard_log=logger,
+    env = environment_creation(num_workers=num_workers, options=options, evaluation=False)
+    model = SAC("MlpPolicy", env, tensorboard_log=logger,) #n_steps=256, batch_size=1024)  # learning_rate=linear(0.001)) tensorboard_log=logger,
     model.learn(total_timesteps=num_steps, )#progress_bar=True,
                 #callback=HParamCallback(env_params=options))
     model.save(AGENT_PATH)
-    rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
-    obs = env.reset()
+    #VecNormalize.save(env, "./env1")
 
-    draw_policy(model, obs, options["world_size"])
-
-    for _ in range(num_steps):
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, info = env.step(action)
-        rewards += reward
-        env.render("human")
-
-        if done:
-            episodes += 1
-            if info[0]["win"]:
-                wins += 1
-            elif info[0]["collision"]:
-                crashes += 1
-            else:
-                stuck += 1
 
 
 
@@ -126,13 +117,13 @@ def continue_training(
     model.save(new_name)
 
 
-def evaluate(name: str, num_steps: int = 1000) -> None:
+def evaluate(name: str, num_steps: int = 10000) -> None:
     """Evaluate a trained agent"""
 
     options = OPTIONS
     options.update({"fork": False, "render": True})
 
-    env = environment_creation(num_workers=1, options=options)
+    env = environment_creation(num_workers=1, options=options, evaluation=True)
     model = PPO.load(name, env)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
@@ -257,8 +248,8 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    #start_training(num_steps=200000, num_workers=4)
+    start_training(num_steps=1000000, num_workers=6)
 
     #continue_training(num_steps=1000000, num_workers=8)
 
-    evaluate(AGENT_PATH)
+    #evaluate(AGENT_PATH)

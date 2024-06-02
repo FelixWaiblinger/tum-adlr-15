@@ -25,9 +25,9 @@ DEFAULT_OPTIONS = {
 }
 
 FIXED_POSITIONS = {
-    "agent": np.array([1, 1]),
-    "target": np.array([8, 8]),
-    "static_obstacle": [np.array([2.5, 2.5]), np.array([3, 3]), np.array([4, 4]), np.array([8, 7]), np.array([7, 8])]
+    "agent": np.array([1, 1], dtype=np.float32),
+    "target": np.array([4, 4], dtype=np.float32),
+    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32), np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32), np.array([7, 8], dtype=np.float32)]
 }
 
 
@@ -83,7 +83,7 @@ class World2D(gym.Env):
 
         # setting "velocity" in x and y direction independently
         self.action_space = spaces.Box(
-            low=-1, high=1, shape=(2,), dtype=np.float32
+            low=-5, high=5, shape=(2,), dtype=np.float32
         )
         self.velocity = 0
 
@@ -142,7 +142,7 @@ class World2D(gym.Env):
         self.static_obstacles = []
 
         for i in range(self.options["num_static_obstacles"]):
-            obstacle = StaticObstacle(position=FIXED_POSITIONS["static_obstacle"][i], random=False)
+            obstacle = StaticObstacle(position=FIXED_POSITIONS["static_obstacle"][i], random=True)
             obstacle.reset(world_size, illegal_positions, self.np_random)
             self.static_obstacles.append(obstacle)
 
@@ -169,8 +169,10 @@ class World2D(gym.Env):
 
         # move agent according to chosen action
         action = action/np.linalg.norm(action)
+
+        #self.velocity += action
         self.agent.speed = action.astype(np.float32)
-        self.velocity = step_length * action
+        self.velocity = 0.6 * self.velocity + 0.4 * step_length * action
 
         self.agent.position = np.clip(
             self.agent.position + self.velocity,

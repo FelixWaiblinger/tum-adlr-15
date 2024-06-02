@@ -64,7 +64,7 @@ class Agent(Entity):
         self.position = np.zeros(2, dtype=np.float32)
         self.speed = np.zeros(2, dtype=np.float32)
         self.color = (0, 0, 255)
-        self.size = 0.2
+        self.size = 0.1
         self.start_position = position
         self.random = random
 
