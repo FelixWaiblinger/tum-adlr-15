@@ -88,7 +88,7 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     observation, _ = env.reset()
 
-    #draw_policy(model, obs, options["world_size"])
+    # draw_policy(model, observation, options["world_size"])
 
     for _ in range(num_steps):
         action, test = model.predict(observation, deterministic=True)
@@ -97,6 +97,7 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
         env.render()
 
         if terminated:
+            observation, info = env.reset()
             episodes += 1
             if info["win"]:
                 wins += 1
@@ -209,8 +210,8 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    start_training(num_steps=100_000, num_workers=6)
+    # start_training(num_steps=100_000, num_workers=6)
 
     # continue_training(num_steps=1000000, num_workers=8)
 
-    #evaluate(AGENT_PATH)
+    evaluate(AGENT_PATH)
