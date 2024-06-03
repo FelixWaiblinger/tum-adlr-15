@@ -5,7 +5,7 @@ import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.utils import MAX_EPISODE_STEPS #, eucl
+from adlr_environments.constants import MAX_EPISODE_STEPS #, eucl
 
 
 class NormalizeObservationWrapper(gym.Wrapper):  # VecEnvWrapper):

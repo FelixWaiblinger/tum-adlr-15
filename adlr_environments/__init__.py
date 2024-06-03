@@ -2,7 +2,7 @@
 
 from gymnasium.envs.registration import register
 
-from adlr_environments.utils import MAX_EPISODE_STEPS
+from adlr_environments.constants import MAX_EPISODE_STEPS
 
 
 register(

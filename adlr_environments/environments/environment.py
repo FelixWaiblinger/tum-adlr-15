@@ -8,10 +8,10 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
-from state_representation.bps import BPS #, img2pc
-from adlr_environments.utils import MAX_EPISODE_STEPS, eucl
+from state_representation.bps import BPS  # , img2pc
+from adlr_environments.constants import MAX_EPISODE_STEPS
+from adlr_environments.utils import eucl
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
-
 
 DEFAULT_OPTIONS = {
     "seed": 42,
@@ -27,7 +27,9 @@ DEFAULT_OPTIONS = {
 FIXED_POSITIONS = {
     "agent": np.array([1, 1], dtype=np.float32),
     "target": np.array([4, 4], dtype=np.float32),
-    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32), np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32), np.array([7, 8], dtype=np.float32)]
+    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32),
+                        np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32),
+                        np.array([7, 8], dtype=np.float32)]
 }
 
 
@@ -36,12 +38,12 @@ class World2D(gym.Env):
     space
     """
 
-    metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 30}
+    metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
 
     def __init__(self,
-        render_mode: str=None,
-        options: Dict[str, Any]=None
-    ) -> None:
+                 render_mode: str = None,
+                 options: Dict[str, Any] = None
+                 ) -> None:
         """Create new environment"""
 
         # fill missing options with default values
@@ -62,8 +64,9 @@ class World2D(gym.Env):
         # observations
         self.win = False
         self.collision = False
-        self.agent = Agent(position=FIXED_POSITIONS["agent"], random=False)
-        self.target = Target(position=FIXED_POSITIONS["target"], random=False)
+        self.wall_collision = False
+        self.agent = Agent(position=FIXED_POSITIONS["agent"], random=options["random_agent"])
+        self.target = Target(position=FIXED_POSITIONS["target"], random=options["random_target"], world_size=options["world_size"])
         self.static_obstacles: list[StaticObstacle] = []
         self.dynamic_obstacles: list[DynamicObstacle] = []
         self.pointcloud = None
@@ -73,7 +76,7 @@ class World2D(gym.Env):
             "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "state": spaces.Box(
-                0, world_size, shape=(options["num_static_obstacles"] * 2, ), dtype=np.float32
+                0, world_size, shape=(options["num_static_obstacles"] * 2,), dtype=np.float32
             )
             # "state": spaces.Box(
             #     low=0, high=world_size * np.sqrt(2), # possible distances
@@ -83,13 +86,13 @@ class World2D(gym.Env):
 
         # setting "velocity" in x and y direction independently
         self.action_space = spaces.Box(
-            low=-5, high=5, shape=(2,), dtype=np.float32
+            low=-1, high=1, shape=(2,), dtype=np.float32
         )
         self.velocity = 0
 
     def _get_observations(self):
         self.pointcloud = np.array([o.position for o in self.static_obstacles])
-        #bps_distances = self.bps.encode(self.pointcloud)
+        # bps_distances = self.bps.encode(self.pointcloud)
         obstacles = np.array([x.position for x in self.static_obstacles])
         obstacles = obstacles.flatten().astype(np.float32)
         # agent = np.concatenate([
@@ -97,35 +100,34 @@ class World2D(gym.Env):
         #     self.agent.speed
         # ], dtype=np.float32)
         agent = self.agent.position
-        
+
         return {
             "agent": agent.astype(np.float32),
             "target": self.target.position,
-            #"state": bps_distances
+            # "state": bps_distances
             "state": obstacles
         }
 
     def _get_infos(self):
         obstacles = self.static_obstacles + self.dynamic_obstacles
         distance = eucl(self.agent.position, self.target.position)
-        obs_distance = np.min(
-            [eucl(o.position, self.agent.position) for o in obstacles]
-        )
+        # obs_distance = np.min(
+        #     [eucl(o.position, self.agent.position) for o in obstacles]
+        # )
 
         return {
             "win": self.win,
             "collision": self.collision,
             "timestep": self.timestep,
             "distance": distance,
-            "obs_distance": obs_distance
-            "wall_collision": wall_collision
+            #"obs_distance": obs_distance,
+            "wall_collision": self.wall_collision
         }
 
-
     def reset(self, *,
-        seed: int=None,
-        options: Dict[str, Any] = None
-    ) -> Tuple[Any, Dict[str, Any]]:
+              seed: int = None,
+              options: Dict[str, Any] = None
+              ) -> Tuple[Any, Dict[str, Any]]:
         """Reset environment between episodes"""
 
         super().reset(seed=seed)
@@ -140,10 +142,9 @@ class World2D(gym.Env):
         # reset static obstacles
         self.static_obstacles = []
 
-        for _ in range(self.options["num_static_obstacles"]):
-            obstacle = StaticObstacle()
+        for i in range(self.options["num_static_obstacles"]):
+            obstacle = StaticObstacle(position=FIXED_POSITIONS["static_obstacle"][i], random=self.options["random_obstacles"])
             obstacle.reset(world_size, entities, self.np_random)
-            obstacle = StaticObstacle(position=FIXED_POSITIONS["static_obstacle"][i], random=True)
             self.static_obstacles.append(obstacle)
 
         # reset dynamic obstacles
@@ -160,6 +161,7 @@ class World2D(gym.Env):
         self.timestep = 0
         self.win = False
         self.collision = False
+        self.wall_collision = False
 
         return self._get_observations(), self._get_infos()
 
@@ -170,9 +172,7 @@ class World2D(gym.Env):
         step_length = self.options["step_length"]
 
         # move agent according to chosen action
-        action = action/np.linalg.norm(action)
-
-        #self.velocity += action
+        action = action / np.linalg.norm(action)
         self.agent.speed = action.astype(np.float32)
         self.velocity = 0.6 * self.velocity + 0.4 * step_length * action
 
@@ -183,6 +183,8 @@ class World2D(gym.Env):
 
         # check win condition
         self.win = self.target.collision(self.agent)
+
+        self.wall_collision = self.agent.wall_collision(self.options["world_size"])
 
         # move dynamic obstacles
         for obs in self.dynamic_obstacles:
@@ -212,7 +214,7 @@ class World2D(gym.Env):
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
-            pygame.init() # pylint: disable=no-member
+            pygame.init()  # pylint: disable=no-member
             pygame.display.init()
             self.window = pygame.display.set_mode(
                 (self.window_size, self.window_size)
@@ -262,4 +264,4 @@ class World2D(gym.Env):
     def close(self):
         if self.window is not None:
             pygame.display.quit()
-            pygame.quit() # pylint: disable=no-member
+            pygame.quit()  # pylint: disable=no-member

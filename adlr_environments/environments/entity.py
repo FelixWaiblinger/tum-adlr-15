@@ -20,12 +20,13 @@ class Entity(ABC):
 
     def reset(self, world_size: float, entities: list, generator: Generator):
         """Reset the entity for the next episode"""
-        while True:
-            self.position = generator.uniform(0, world_size, 2).astype(np.float32)
-            if not any(self.collision(e) for e in entities):
-                entities.append(self)
-                break
         if self.random:
+            while True:
+                self.position = generator.uniform(0, world_size, 2).astype(np.float32)
+                if not any(self.collision(e) for e in entities):
+                    entities.append(self)
+                    break
+
         else:
             self.position = self.start_position
 
@@ -76,6 +77,7 @@ class Agent(Entity):
             head_width=20,
             head_height=12
         )
+
     def wall_collision(self, world_size: float):
         x_position = self.position[0]
         y_position = self.position[1]
@@ -95,7 +97,7 @@ class Agent(Entity):
 class Target(Entity):
     """2D Target box"""
 
-    def __init__(self, random, position) -> None:
+    def __init__(self, random, position, world_size: float) -> None:
         """Create a new target"""
         self.position = 0.7 * world_size * np.ones(2, dtype=np.float32)
         self.color = (255, 0, 0)
@@ -126,7 +128,7 @@ class DynamicObstacle(Entity):
         self.size = 0.5
         self.speed = np.array(speed)
 
-    def move(self, bounds: tuple=None):
+    def move(self, bounds: tuple = None):
         """Move the dynamic obstacle"""
         self.position += self.speed
         if bounds:

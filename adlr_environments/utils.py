@@ -7,14 +7,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-MAX_EPISODE_STEPS = 400
-
-
 def draw_policy(
-    agent,
-    observation: np.ndarray,
-    world_size: float,
-    resolution: int=10
+        agent,
+        observation: np.ndarray,
+        world_size: float,
+        resolution: int = 10
 ) -> None:
     """Plot a vector field representing the actions chosen by the policy for
     any position in the environment
@@ -26,19 +23,19 @@ def draw_policy(
         for j in np.linspace(offset, world_size - offset, resolution):
             observation[0, :2] = np.array([i, j], dtype=np.float32)
             target, _ = agent.predict(observation, deterministic=True)
-            target = 0.5 * target[0] # shorten for visibility
+            target = 0.5 * target[0]  # shorten for visibility
             plt.arrow(i, j, target[0], -target[1], head_width=0.1)
     plt.show()
 
 
 def draw_arrow(
-    surface: pygame.Surface,
-    start: pygame.Vector2,
-    end: pygame.Vector2,
-    color: pygame.Color,
-    body_width: int = 2,
-    head_width: int = 4,
-    head_height: int = 2,
+        surface: pygame.Surface,
+        start: pygame.Vector2,
+        end: pygame.Vector2,
+        color: pygame.Color,
+        body_width: int = 2,
+        head_width: int = 4,
+        head_height: int = 2,
 ):
     """Draw an arrow between start and end with the arrow head at the end.
 
@@ -91,7 +88,7 @@ def draw_arrow(
 
 
 def eucl(x: np.ndarray, y: np.ndarray) -> float:
-    """Return euclidean distance between positions x and y"""
+    """Return Euclidean distance between positions x and y"""
     return np.linalg.norm(x - y, ord=2)
 
 
