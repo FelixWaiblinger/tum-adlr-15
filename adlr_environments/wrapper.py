@@ -5,7 +5,7 @@ import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.utils import MAX_EPISODE_STEPS, eucl
+from adlr_environments.utils import MAX_EPISODE_STEPS #, eucl
 
 
 class NormalizeObservationWrapper(gym.Wrapper):  # VecEnvWrapper):
@@ -27,7 +27,7 @@ class NormalizeObservationWrapper(gym.Wrapper):  # VecEnvWrapper):
         return obs, reward, terminated, truncated, info
 
 
-class RewardWrapper(gym.Wrapper):  # VecEnvWrapper):
+class RewardWrapper(gym.Wrapper):
     """Customize the reward function of the environment"""
 
     def __init__(self, env: gym.Env, options):  #: dict | None=None) -> None:
@@ -88,7 +88,8 @@ class HParamCallback(BaseCallback):
         # transform dictionary to python types
         hparam_dict = {k: to_python_type(v) for k, v in hparam_dict.items()}
 
-        # define the metrics that will appear in the HPARAMS Tensorboard tab by referencing their tag
+        # define the metrics that will appear in the HPARAMS Tensorboard tab
+        # by referencing their tag
         # Tensorboard will find & display metrics from the SCALARS tab
         metric_dict = {
             "rollout/ep_rew_mean": 0.0,

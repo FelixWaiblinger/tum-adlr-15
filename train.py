@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 from typing import Dict
 
 import numpy as np
@@ -80,14 +81,13 @@ def start_training(
 ) -> None:
     """Train a new agent from scratch"""
 
-    logger = LOG_PATH
     options = OPTIONS
     options.update({"fork": True, "render": False})
 
-    env = environment_creation(num_workers=num_workers, options=options, evaluation=False)
-    model = SAC("MlpPolicy", env, tensorboard_log=logger,) #n_steps=256, batch_size=1024)  # learning_rate=linear(0.001)) tensorboard_log=logger,
-    model.learn(total_timesteps=num_steps, )#progress_bar=True,
-                #callback=HParamCallback(env_params=options))
+    env = environment_creation(num_workers=num_workers, options=options)
+    model = PPO("MlpPolicy", env, tensorboard_log=LOG_PATH, learning_rate=linear(0.001))
+    model.learn(total_timesteps=num_steps, progress_bar=True)
+                # callback=HParamCallback(env_params=options))
     model.save(AGENT_PATH)
     #VecNormalize.save(env, "./env1")
 
@@ -107,9 +107,9 @@ def continue_training(
     if not new_name:
         new_name = AGENT_PATH
 
-    logger = "./logs/" + new_name
     options = OPTIONS
-    options.update({"fork": True, "render": True})
+    options.update({"fork": True, "render": False})
+    logger = "./logs/" + new_name
 
     env = environment_creation(num_workers=num_workers, options=options)
     model = PPO.load(AGENT_PATH, env=env, tensorboard_log=logger)
@@ -135,7 +135,7 @@ def evaluate(name: str, num_steps: int = 10000) -> None:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
         rewards += reward
-        #env.render("human")
+        env.render()
 
         if done:
             episodes += 1
@@ -145,6 +145,8 @@ def evaluate(name: str, num_steps: int = 10000) -> None:
                 crashes += 1
             else:
                 stuck += 1
+
+        # time.sleep(0.1)
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")

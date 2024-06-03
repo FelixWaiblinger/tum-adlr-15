@@ -8,9 +8,9 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
-from state_representation.bps import BPS, img2pc
-from .entity import Agent, Target, StaticObstacle, DynamicObstacle
+from state_representation.bps import BPS #, img2pc
 from adlr_environments.utils import MAX_EPISODE_STEPS, eucl
+from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
 
 DEFAULT_OPTIONS = {
@@ -40,7 +40,7 @@ class World2D(gym.Env):
 
     def __init__(self,
         render_mode: str=None,
-        options: Dict[str, Any] = None
+        options: Dict[str, Any]=None
     ) -> None:
         """Create new environment"""
 
@@ -58,17 +58,17 @@ class World2D(gym.Env):
         self.options = options
 
         world_size = options["world_size"]
-        # num_obstacles = options["num_static_obstacles"]
 
         # observations
+        self.win = False
+        self.collision = False
         self.agent = Agent(position=FIXED_POSITIONS["agent"], random=False)
         self.target = Target(position=FIXED_POSITIONS["target"], random=False)
         self.static_obstacles: list[StaticObstacle] = []
         self.dynamic_obstacles: list[DynamicObstacle] = []
         self.pointcloud = None
-        self.bps = BPS(options["seed"], options["bps_size"], world_size)
         self.timestep = 0
-
+        self.bps = BPS(options["seed"], options["bps_size"], world_size)
         self.observation_space = spaces.Dict({
             "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
             "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
@@ -99,23 +99,25 @@ class World2D(gym.Env):
         agent = self.agent.position
         
         return {
-            "agent": agent,
+            "agent": agent.astype(np.float32),
             "target": self.target.position,
             #"state": bps_distances
             "state": obstacles
         }
-    
-    def _get_infos(self, win: bool=False, collision: bool=False, wall_collision: bool=False):
+
+    def _get_infos(self):
         obstacles = self.static_obstacles + self.dynamic_obstacles
+        distance = eucl(self.agent.position, self.target.position)
+        obs_distance = np.min(
+            [eucl(o.position, self.agent.position) for o in obstacles]
+        )
 
         return {
-            "win": win,
-            "collision": collision,
+            "win": self.win,
+            "collision": self.collision,
             "timestep": self.timestep,
-            "distance": eucl(self.agent.position, self.target.position),
-            # "obs_distance": np.min(
-            #     [eucl(o.position, self.agent.position) for o in obstacles]
-            # ),
+            "distance": distance,
+            "obs_distance": obs_distance
             "wall_collision": wall_collision
         }
 
@@ -129,21 +131,19 @@ class World2D(gym.Env):
         super().reset(seed=seed)
         self.options.update((options if options else {}))
 
-        illegal_positions = []
         world_size = self.options["world_size"]
+        entities = [self.target]
 
         # reset agent
-        self.agent.reset(world_size, illegal_positions, self.np_random)
-
-        # reset target
-        self.target.reset(world_size, illegal_positions, self.np_random)
+        self.agent.reset(world_size, entities, self.np_random)
 
         # reset static obstacles
         self.static_obstacles = []
 
-        for i in range(self.options["num_static_obstacles"]):
+        for _ in range(self.options["num_static_obstacles"]):
+            obstacle = StaticObstacle()
+            obstacle.reset(world_size, entities, self.np_random)
             obstacle = StaticObstacle(position=FIXED_POSITIONS["static_obstacle"][i], random=True)
-            obstacle.reset(world_size, illegal_positions, self.np_random)
             self.static_obstacles.append(obstacle)
 
         # reset dynamic obstacles
@@ -154,10 +154,12 @@ class World2D(gym.Env):
         for _ in range(self.options["num_dynamic_obstacles"]):
             speed = self.np_random.uniform(min_speed, max_speed, size=2)
             obstacle = DynamicObstacle(speed)
-            obstacle.reset(world_size, illegal_positions, self.np_random)
+            obstacle.reset(world_size, entities, self.np_random)
             self.dynamic_obstacles.append(obstacle)
 
         self.timestep = 0
+        self.win = False
+        self.collision = False
 
         return self._get_observations(), self._get_infos()
 
@@ -180,7 +182,7 @@ class World2D(gym.Env):
         )
 
         # check win condition
-        win = self.target.collision(self.agent)
+        self.win = self.target.collision(self.agent)
 
         # move dynamic obstacles
         for obs in self.dynamic_obstacles:
@@ -188,15 +190,14 @@ class World2D(gym.Env):
 
         # check collisions
         obstacles = self.static_obstacles + self.dynamic_obstacles
-        collision = any(obs.collision(self.agent) for obs in obstacles)
-        wall_collision = self.agent.wall_collision(self.options["world_size"])
+        self.collision = any(obs.collision(self.agent) for obs in obstacles)
 
         self.timestep += 1
-        terminated = win or collision
+        terminated = self.win or self.collision
         truncated = self.timestep >= MAX_EPISODE_STEPS
 
         observation = self._get_observations()
-        info = self._get_infos(win, collision, wall_collision)
+        info = self._get_infos()
 
         if self.render_mode == "human":
             self.render()
@@ -205,6 +206,8 @@ class World2D(gym.Env):
 
     def render(self):
         if self.render_mode == "human":
+            self._render_frame()
+        if self.render_mode == "rgb_array":
             return self._render_frame()
 
     def _render_frame(self):
@@ -240,8 +243,10 @@ class World2D(gym.Env):
 
         # create pointcloud from currently rendered image
         image = copy.deepcopy(pygame.surfarray.pixels3d(canvas))
-        image = image[::4, ::4, :] # resolution = 0.25 * window_size
-        self.pointcloud = img2pc(image, world_size)
+
+        # NOTE: if an actual pointcloud becomes necessary later
+        # image = image[::4, ::4, :] # resolution = 0.25 * window_size
+        # self.pointcloud = img2pc(image, world_size)
 
         if self.render_mode == "human":
             # copy drawings from canvas to the visible window
