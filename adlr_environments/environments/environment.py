@@ -1,57 +1,36 @@
 """2D environment"""
 
-from typing import Any
+from typing import Any, Dict, Tuple
+import copy
 
 import pygame
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from bps import bps
-import time
 
+from state_representation.bps import BPS  # , img2pc
+from adlr_environments.constants import MAX_EPISODE_STEPS
+from adlr_environments.utils import eucl
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
-import matplotlib.pyplot as plt
 
 DEFAULT_OPTIONS = {
+    "seed": 42,
     "world_size": 10,
     "step_length": 0.1,
-    "num_static_obstacles": 0,
+    "num_static_obstacles": 5,
     "num_dynamic_obstacles": 0,
-    "min_size": 1,
-    "max_size": 1,
     "min_speed": 0.1,
     "max_speed": 0.1,
+    "bps_size": 100,
 }
 
-
-def compute_bps(arr):
-
-
-    # sum along axis
-    arr = np.sum(arr, axis=2)
-
-    # binarize image
-    binarized_image = np.zeros_like(arr)
-    binarized_image[arr < 765] = 0
-    binarized_image[arr == 765] = 1
-
-    # get indices where object points at
-    indices = np.array(np.where(binarized_image == 1))
-
-    # create pointcloud by adding z-component, not necessary: we can use 2d bps
-    #pointcloud = np.concatenate((indices, np.zeros(1, np.shape(indices)[1])))
-    pointcloud = np.transpose(indices)
-    pointcloud = pointcloud[np.newaxis, :, :]
-
-    # normalize pointcloud
-    pointcloud = bps.normalize(pointcloud)
-
-    # now do the encoding
-    start = time.time()
-    bps_encoding, _ = bps.encode(pointcloud, bps_arrangement="random", n_bps_points=100, bps_cell_type="dists", n_jobs=1)
-    bps_encoding = bps_encoding.reshape(-1)
-    print(f"time for one iteration : {time.time() - start}")
-    return bps_encoding
+FIXED_POSITIONS = {
+    "agent": np.array([1, 1], dtype=np.float32),
+    "target": np.array([4, 4], dtype=np.float32),
+    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32),
+                        np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32),
+                        np.array([7, 8], dtype=np.float32)]
+}
 
 
 class World2D(gym.Env):
@@ -62,13 +41,15 @@ class World2D(gym.Env):
     metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
 
     def __init__(self,
-        render_mode: str | None = None,
-        options: dict[str, Any] = None
-    ) -> None:
+                 render_mode: str = None,
+                 options: Dict[str, Any] = None
+                 ) -> None:
         """Create new environment"""
 
         # fill missing options with default values
-        options = DEFAULT_OPTIONS | (options if options else {})
+        opts = DEFAULT_OPTIONS
+        opts.update((options if options else {}))
+        options = opts
 
         # pygame related stuff
         assert render_mode in self.metadata["render_modes"]
@@ -78,178 +59,162 @@ class World2D(gym.Env):
         self.clock = None
         self.options = options
 
-        world_size = options.get("world_size", 10)
+        world_size = options["world_size"]
 
         # observations
-        self.pointcloud = None
-        self.agent = Agent()
-        self.target = Target()
+        self.win = False
+        self.collision = False
+        self.wall_collision = False
+        self.agent = Agent(position=FIXED_POSITIONS["agent"], random=options["random_agent"])
+        self.target = Target(position=FIXED_POSITIONS["target"], random=options["random_target"], world_size=options["world_size"])
         self.static_obstacles: list[StaticObstacle] = []
         self.dynamic_obstacles: list[DynamicObstacle] = []
-
-
+        self.pointcloud = None
+        self.timestep = 0
+        self.bps = BPS(options["seed"], options["bps_size"], world_size)
         self.observation_space = spaces.Dict({
-            "agent": spaces.Box(0, world_size, shape=(2,), dtype=float),
-            "target": spaces.Box(0, world_size, shape=(2,), dtype=float),
-            "pointcloud": spaces.Box(-2, 2, shape=(100, ), dtype=float )
-            # OPTION 1: observe either center xy of each obstacle or pointcloud
-            #           of all occupied xy's
-            #
-            # "static": spaces.Sequence(
-            #     spaces.Box(0, world_size, shape=(2,), dtype=float),
-            #     stack=True
-            # ),
-            # "dynamic": spaces.Sequence(
-            #     spaces.Box(0, world_size, shape=(2,), dtype=float),
-            #     stack=True
-            # ),
-            # OPTION 2: observe point cloud of the entire environment
-            # "environment": spaces.Sequence(
-            #     spaces.Box(0, world_size, shape=(2,), dtype=float),
-            #     stack=True
+            "agent": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
+            "target": spaces.Box(0, world_size, shape=(2,), dtype=np.float32),
+            "state": spaces.Box(
+                0, world_size, shape=(options["num_static_obstacles"] * 2,), dtype=np.float32
+            )
+            # "state": spaces.Box(
+            #     low=0, high=world_size * np.sqrt(2), # possible distances
+            #     shape=(options["bps_size"],), dtype=np.float32
             # )
-            # NOTE: spaces.Sequence prints a warning, because it is not
-            #       implemented in .../gymnasium/utils/passive_env_checker.py
-            #       see https://github.com/DLR-RM/stable-baselines3/issues/1688
-            #       this seems to be no problem for sb3 though
-            #       (and it only warns in the first iteration)
-            # NOTE: MAYBE IT IS AN ISSUE! :angry-emoji:
         })
+
         # setting "velocity" in x and y direction independently
-        self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=float)
-        self._render_frame()
+        self.action_space = spaces.Box(
+            low=-1, high=1, shape=(2,), dtype=np.float32
+        )
+        self.velocity = 0
 
     def _get_observations(self):
-        # TODO: How are the observations of a sequence supposed to look like if
-        #       there are no elements in the sequence???
-        #       If I use None it says should be ndarray and vice versa...
-        static = np.array(o.position for o in self.static_obstacles) \
-            if self.static_obstacles else np.array([])
-
-        dynamic = np.array(o.position for o in self.dynamic_obstacles) \
-            if self.dynamic_obstacles else np.array([])
-
-        #start = time.time()
-        pointcloud = compute_bps(self.pointcloud)
-        #print(f"time for one iteration : {time.time() - start}")
-
-
+        self.pointcloud = np.array([o.position for o in self.static_obstacles])
+        # bps_distances = self.bps.encode(self.pointcloud)
+        obstacles = np.array([x.position for x in self.static_obstacles])
+        obstacles = obstacles.flatten().astype(np.float32)
+        # agent = np.concatenate([
+        #     self.agent.position,
+        #     self.agent.speed
+        # ], dtype=np.float32)
+        agent = self.agent.position
 
         return {
-            "agent": self.agent.position,
+            "agent": agent.astype(np.float32),
             "target": self.target.position,
-            "pointcloud": pointcloud
-            # currently only observe the center position of the obstacles
-            # "static": static,
-            # "dynamic": dynamic,
+            # "state": bps_distances
+            "state": obstacles
         }
 
-    def _get_info(self):
+    def _get_infos(self):
+        obstacles = self.static_obstacles + self.dynamic_obstacles
+        distance = eucl(self.agent.position, self.target.position)
+        # obs_distance = np.min(
+        #     [eucl(o.position, self.agent.position) for o in obstacles]
+        # )
+
         return {
-            # l2-norm between agent and target
-            "distance": np.linalg.norm(
-                self.agent.position - self.target.position,
-                ord=2
-            )
+            "win": self.win,
+            "collision": self.collision,
+            "timestep": self.timestep,
+            "distance": distance,
+            #"obs_distance": obs_distance,
+            "wall_collision": self.wall_collision
         }
 
     def reset(self, *,
-        seed: int | None = None,
-        options: dict[str, Any] = None
-    ) -> tuple[Any, dict[str, Any]]:
+              seed: int = None,
+              options: Dict[str, Any] = None
+              ) -> Tuple[Any, Dict[str, Any]]:
         """Reset environment between episodes"""
 
         super().reset(seed=seed)
-        self.options = self.options | (options if options else {})
+        self.options.update((options if options else {}))
 
-        illegal_positions = []
-        world_size = self.options.get("world_size", 10)
+        world_size = self.options["world_size"]
+        entities = [self.target]
 
         # reset agent
-        self.agent.reset(world_size, illegal_positions)
-
-        # reset target
-        self.target.reset(world_size, illegal_positions)
+        self.agent.reset(world_size, entities, self.np_random)
 
         # reset static obstacles
-        self.static_obstacles.clear()
-        num_static = self.options.get("num_static_obstacles", 0)
-        min_size = self.options.get("min_size", 1)
-        max_size = self.options.get("max_size", 1)
+        self.static_obstacles = []
 
-        for _ in range(num_static):
-            size = self.np_random.uniform(min_size, max_size, size=2)
-            obstacle = StaticObstacle(size)
-            obstacle.reset(world_size, illegal_positions)
+        for i in range(self.options["num_static_obstacles"]):
+            obstacle = StaticObstacle(position=FIXED_POSITIONS["static_obstacle"][i], random=self.options["random_obstacles"])
+            obstacle.reset(world_size, entities, self.np_random)
             self.static_obstacles.append(obstacle)
 
         # reset dynamic obstacles
-        self.dynamic_obstacles.clear()
-        num_dynamic = self.options.get("num_dynamic_obstacles", 0)
-        min_speed = self.options.get("min_speed", -0.2)
-        max_speed = self.options.get("max_speed", 0.2)
+        self.dynamic_obstacles = []
+        min_speed = self.options["min_speed"]
+        max_speed = self.options["max_speed"]
 
-        for _ in range(num_dynamic):
-            size = self.np_random.uniform(min_size, max_size, size=2)
+        for _ in range(self.options["num_dynamic_obstacles"]):
             speed = self.np_random.uniform(min_speed, max_speed, size=2)
-            obstacle = DynamicObstacle(size, speed)
-            obstacle.reset(world_size, illegal_positions)
+            obstacle = DynamicObstacle(speed)
+            obstacle.reset(world_size, entities, self.np_random)
             self.dynamic_obstacles.append(obstacle)
 
-        observation = self._get_observations()
-        info = self._get_info()
+        self.timestep = 0
+        self.win = False
+        self.collision = False
+        self.wall_collision = False
 
-        # if self.render_mode == "human":
-        #     self._render_frame()
+        return self._get_observations(), self._get_infos()
 
-        self._render_frame()
-
-        return observation, info
-
-    def step(self, action):
+    def step(self, action: np.ndarray):
         """Perform one time step"""
 
         world_size = self.options["world_size"]
         step_length = self.options["step_length"]
 
         # move agent according to chosen action
+        action = action / np.linalg.norm(action)
+        self.agent.speed = action.astype(np.float32)
+        self.velocity = 0.6 * self.velocity + 0.4 * step_length * action
+
         self.agent.position = np.clip(
-            self.agent.position + step_length * action, 0, world_size
+            self.agent.position + self.velocity,
+            0, world_size, dtype=np.float32
         )
 
         # check win condition
-        win = self.target.collision(self.agent)
+        self.win = self.target.collision(self.agent)
+
+        self.wall_collision = self.agent.wall_collision(self.options["world_size"])
 
         # move dynamic obstacles
-        for obstacle in self.dynamic_obstacles:
-            obstacle.move()
+        for obs in self.dynamic_obstacles:
+            obs.move()
 
         # check collisions
         obstacles = self.static_obstacles + self.dynamic_obstacles
-        collision = any(obs.collision(self.agent) for obs in obstacles)
+        self.collision = any(obs.collision(self.agent) for obs in obstacles)
 
-        # reward is negative for each time step except if target was found
-        distance = -np.linalg.norm(self.target.position - self.agent.position)
-        reward = 100 if win else distance
-        terminated = win or collision
-
-
+        self.timestep += 1
+        terminated = self.win or self.collision
+        truncated = self.timestep >= MAX_EPISODE_STEPS
 
         observation = self._get_observations()
-        info = self._get_info()
+        info = self._get_infos()
 
         if self.render_mode == "human":
-            self._render_frame()
+            self.render()
 
-        return observation, reward, terminated, False, info
+        return observation, 0, terminated, truncated, info
 
     def render(self):
+        if self.render_mode == "human":
+            self._render_frame()
         if self.render_mode == "rgb_array":
             return self._render_frame()
 
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
-            pygame.init() # pylint: disable=no-member
+            pygame.init()  # pylint: disable=no-member
             pygame.display.init()
             self.window = pygame.display.set_mode(
                 (self.window_size, self.window_size)
@@ -261,8 +226,8 @@ class World2D(gym.Env):
         canvas.fill((255, 255, 255))
 
         # conversion ratio from world to pixel coordinates
-        world2canvas = self.window_size / self.options["world_size"]
-
+        world_size = self.options["world_size"]
+        world2canvas = self.window_size / world_size
 
         # draw static obstacles
         for obstacle in self.static_obstacles:
@@ -272,23 +237,18 @@ class World2D(gym.Env):
         for obstacle in self.dynamic_obstacles:
             obstacle.draw(canvas, world2canvas)
 
-        canvas_copy = canvas.copy()
         # draw the target
         self.target.draw(canvas, world2canvas)
 
         # draw the agent
         self.agent.draw(canvas, world2canvas)
 
+        # create pointcloud from currently rendered image
+        image = copy.deepcopy(pygame.surfarray.pixels3d(canvas))
 
-
-        # save current image
-        # TODO convert to actual point cloud with object information
-        self.pointcloud = np.transpose(np.array(pygame.surfarray.pixels3d(canvas_copy)), axes=(1, 0, 2)) #, axes=(1, 0, 2)
-        #plt.imshow(self.pointcloud)
-        #plt.show()
-
-
-
+        # NOTE: if an actual pointcloud becomes necessary later
+        # image = image[::4, ::4, :] # resolution = 0.25 * window_size
+        # self.pointcloud = img2pc(image, world_size)
 
         if self.render_mode == "human":
             # copy drawings from canvas to the visible window
@@ -296,15 +256,12 @@ class World2D(gym.Env):
             pygame.event.pump()
             pygame.display.update()
 
-            # We need to ensure that human-rendering occurs at the predefined framerate.
-            # The following line will automatically add a delay to keep the framerate stable.
+            # draw image at given framerate
             self.clock.tick(self.metadata["render_fps"])
         else:  # rgb_array
-            return np.transpose(
-                pygame.surfarray.pixels3d(canvas), axes=(1, 0, 2)
-            )
+            return image
 
     def close(self):
         if self.window is not None:
             pygame.display.quit()
-            pygame.quit() # pylint: disable=no-member
+            pygame.quit()  # pylint: disable=no-member
