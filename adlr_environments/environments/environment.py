@@ -12,7 +12,6 @@ from utils import eucl
 from utils.constants import *
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
-
 DEFAULT_OPTIONS = {
     "world": None,
     "episode_length": MAX_EPISODE_STEPS,
@@ -32,7 +31,9 @@ DEFAULT_OPTIONS = {
 FIXED_POSITIONS = {
     "agent": np.array([1, 1], dtype=np.float32),
     "target": np.array([4, 4], dtype=np.float32),
-    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32), np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32), np.array([7, 8], dtype=np.float32)]
+    "static_obstacle": [np.array([2.5, 2.5], dtype=np.float32), np.array([3, 3], dtype=np.float32),
+                        np.array([4, 4], dtype=np.float32), np.array([8, 7], dtype=np.float32),
+                        np.array([7, 8], dtype=np.float32)]
 }
 
 
@@ -41,7 +42,7 @@ class World2D(gym.Env):
     space
     """
 
-    metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 30}
+    metadata = {"render_modes": [None, "human", "rgb_array"], "render_fps": 60}
 
     def __init__(self,
         render_mode: str=None,
@@ -149,7 +150,6 @@ class World2D(gym.Env):
             "wall_collision": wall_collision
         }
 
-
     def reset(self, *,
         seed: int=None,
         options: dict = None
@@ -232,6 +232,8 @@ class World2D(gym.Env):
 
         # check win condition
         self.win = self.target.collision(self.agent)
+
+        self.wall_collision = self.agent.wall_collision(self.options["world_size"])
 
         # move dynamic obstacles
         obstacles = self.static_obstacles + self.dynamic_obstacles

@@ -18,10 +18,9 @@ env = gym.make(
     options=options
 )
 
-
 observation, info = env.reset(seed=42)
-
-print(observation)
+print("Observation:", observation)
+print("Info:", info)
 for i in range(300):
     action = env.action_space.sample()
     observation, reward, terminated, truncated, info = env.step(action)
