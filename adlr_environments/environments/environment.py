@@ -136,7 +136,9 @@ class World2D(gym.Env):
         max_speed = self.options["max_speed"]
 
         for _ in range(self.options["num_dynamic_obstacles"]):
-            speed = self.np_random.uniform(min_speed, max_speed, size=2)
+            speed = self.np_random.uniform(-1, 1, size=2)
+            speed = speed / np.sum(speed)
+            speed *= self.np_random.uniform(min_speed, max_speed, size=1)
             obstacle = DynamicObstacle(speed)
             obstacle.reset(world_size, entities, self.np_random)
             self.dynamic_obstacles.append(obstacle)

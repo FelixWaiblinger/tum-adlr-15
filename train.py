@@ -8,7 +8,7 @@ from typing import Dict
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 import adlr_environments  # pylint: disable=unused-import
@@ -16,19 +16,20 @@ from adlr_environments.wrapper import RewardWrapper #, HParamCallback
 from adlr_environments.utils import to_py_dict, linear, draw_policy
 
 
-AGENT = "static_target3"
+AGENT = "sac_sparse_dyn"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
 OPTIONS = {
-    "r_target": 100,
+    "r_target": 10,
     "r_collision": -10,
-    "r_time": 1,
+    "r_time": -0.05,
     "r_distance": 2,
     "world_size": 8,
     "step_length": 0.4,
     "num_static_obstacles": 4,
+    "num_dynamic_obstacles": 2,
     "bps_size": 40,
 }
 
@@ -77,9 +78,8 @@ def start_training(
     options.update({"fork": True, "render": False})
 
     env = environment_creation(num_workers=num_workers, options=options)
-    model = PPO("MlpPolicy", env, tensorboard_log=LOG_PATH, learning_rate=linear(0.001))
+    model = SAC("MlpPolicy", env, tensorboard_log=LOG_PATH, learning_rate=linear(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True)
-                # callback=HParamCallback(env_params=options))
     model.save(AGENT_PATH)
 
 
@@ -112,7 +112,7 @@ def evaluate(name: str, num_steps: int=1000) -> None:
     options.update({"fork": False, "render": True})
 
     env = environment_creation(num_workers=1, options=options)
-    model = PPO.load(name, env)
+    model = SAC.load(name, env)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
@@ -134,7 +134,7 @@ def evaluate(name: str, num_steps: int=1000) -> None:
             else:
                 stuck += 1
 
-        # time.sleep(0.1)
+        time.sleep(0.03)
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
