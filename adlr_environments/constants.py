@@ -21,5 +21,6 @@ OPTIONS = {
 AGENT = "n2"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
+VIDEO_PATH = "./videos/"
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
