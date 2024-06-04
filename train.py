@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 from typing import Dict
 import numpy as np
 import gymnasium as gym
@@ -44,12 +45,13 @@ def environment_creation(num_workers: int = 1, options: Dict = None,
 
 def start_training(
         num_steps: int,
-        num_workers: int = 1
+        num_workers: int = 1,
+        vector_environment: bool = False
 ) -> None:
     """Train a new agent from scratch"""
 
     env = environment_creation(num_workers=num_workers, options=OPTIONS, vector_environment=False)
-    model = PPO("MlpPolicy", env, tensorboard_log=LOG_PATH)  # learning_rate=linear(0.001))
+    model = SAC("MlpPolicy", env, tensorboard_log=LOG_PATH)  # learning_rate=linear(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True, callback=HParamCallback(env_params=OPTIONS))
     model.save(AGENT_PATH)
 
@@ -83,7 +85,7 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
     options.update({"render": True})
 
     env = environment_creation(num_workers=1, options=options, vector_environment=False)
-    model = PPO.load(name, env)
+    model = SAC.load(name, env)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     observation, _ = env.reset()
@@ -106,7 +108,7 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
             else:
                 stuck += 1
 
-        # time.sleep(0.1)
+        time.sleep(0.05)
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
@@ -210,8 +212,8 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=100_000, num_workers=6)
+    start_training(num_steps=1000000, num_workers=6, vector_environment=False)
 
     # continue_training(num_steps=1000000, num_workers=8)
 
-    evaluate(AGENT_PATH)
+    #evaluate(AGENT_PATH)
