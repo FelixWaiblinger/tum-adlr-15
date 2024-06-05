@@ -1,1 +1,0 @@
-{"learning_rate": "<function linear_schedule.<locals>.func at 0x710c2daf4a60>", "n_steps": 2048, "batch_size": 128, "n_epochs": 5, "gamma": 0.99, "gae_lambda": 0.99, "r_target": 50, "r_collision": -10, "r_time": -0.01, "r_distance": -0.01, "world_size": 8, "num_static_obstacles": 3, "bps_size": 20, "reward": 1.7985859712829295}

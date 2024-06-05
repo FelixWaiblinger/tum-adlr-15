@@ -10,13 +10,13 @@ import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecVideoRecorder
 import adlr_environments  # pylint: disable=unused-import
 from adlr_environments.wrapper import RewardWrapper #, HParamCallback
 from adlr_environments.utils import to_py_dict, linear, draw_policy
 
 
-AGENT = "sac_sparse_dyn"
+AGENT = "sac_sparse"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 RESULT_PATH = "./agents/random_search_results.json"
@@ -29,7 +29,7 @@ OPTIONS = {
     "world_size": 8,
     "step_length": 0.4,
     "num_static_obstacles": 4,
-    "num_dynamic_obstacles": 2,
+    "num_dynamic_obstacles": 1,
     "bps_size": 40,
 }
 
@@ -117,6 +117,10 @@ def evaluate(name: str, num_steps: int=1000) -> None:
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
 
+    # NOTE: uncomment for video recording
+    # env = VecVideoRecorder(env, "./videos/", lambda x: x == 0, video_length=num_steps-1, name_prefix="static_sac_1dyn")
+    # obs = env.reset()
+
     draw_policy(model, obs, options["world_size"])
 
     for _ in range(num_steps):
@@ -134,7 +138,8 @@ def evaluate(name: str, num_steps: int=1000) -> None:
             else:
                 stuck += 1
 
-        time.sleep(0.03)
+        # time.sleep(0.03)
+    env.close()
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
