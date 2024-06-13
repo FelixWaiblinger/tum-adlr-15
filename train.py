@@ -5,6 +5,8 @@ import json
 import time
 from typing import Dict
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
@@ -12,7 +14,7 @@ from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecVideoRecorder
 import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import RewardWrapper #, HParamCallback
+from adlr_environments.wrapper import RewardWrapper
 from adlr_environments.utils import to_py_dict, linear, draw_policy
 
 
@@ -26,11 +28,15 @@ OPTIONS = {
     "r_collision": -10,
     "r_time": -0.05,
     "r_distance": 2,
-    "world_size": 8,
-    "step_length": 0.4,
+    "r_wall": -0.1,
+    "step_length": 0.1,
+    "size_agent": 0.075,
+    "size_target": 0.1,
     "num_static_obstacles": 4,
-    "num_dynamic_obstacles": 1,
-    "bps_size": 40,
+    "size_static": 0.1,
+    "num_dynamic_obstacles": 3,
+    "size_dynamic": 0.075,
+    "bps_size": 50,
 }
 
 
@@ -44,17 +50,13 @@ def environment_creation(num_workers: int=1, options: Dict=None):
         # flatten observations
         env = FlattenObservation(env)
 
-        # normalize observations
-        # NOTE: tests indicate normalizing is bad
-        # env = NormalizeObservation(env)
-
         # custom reward function
         env = RewardWrapper(env, options)
 
         return env
 
-    render = options.pop("render")
-    fork = options.pop("fork")
+    render = options.get("render", True)
+    fork = options.get("fork", False)
 
     # single/multi threading
     env = make_vec_env(
@@ -62,16 +64,13 @@ def environment_creation(num_workers: int=1, options: Dict=None):
         n_envs=num_workers,
         env_kwargs={"render": ("human" if render else "rgb_array")},
         vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        vec_env_kwargs={"start_method": "fork"} if fork else None
+        vec_env_kwargs={"start_method": "fork"} if fork else {}
     )
 
     return env
 
 
-def start_training(
-    num_steps: int,
-    num_workers: int=1
-) -> None:
+def start_training(num_steps: int, num_workers: int=1):
     """Train a new agent from scratch"""
 
     options = OPTIONS
@@ -83,11 +82,7 @@ def start_training(
     model.save(AGENT_PATH)
 
 
-def continue_training(
-    num_steps: int,
-    new_name: str=None,
-    num_workers: int=1
-) -> None:
+def continue_training(num_steps: int, new_name: str=None, num_workers: int=1):
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
@@ -105,13 +100,10 @@ def continue_training(
     model.save(new_name)
 
 
-def evaluate(name: str, num_steps: int=1000) -> None:
+def evaluate(name: str, num_steps: int=1000):
     """Evaluate a trained agent"""
 
-    options = OPTIONS
-    options.update({"fork": False, "render": True})
-
-    env = environment_creation(num_workers=1, options=options)
+    env = environment_creation(num_workers=1, options=OPTIONS)
     model = SAC.load(name, env)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
@@ -121,7 +113,7 @@ def evaluate(name: str, num_steps: int=1000) -> None:
     # env = VecVideoRecorder(env, "./videos/", lambda x: x == 0, video_length=num_steps-1, name_prefix="static_sac_1dyn")
     # obs = env.reset()
 
-    draw_policy(model, obs, options["world_size"])
+    draw_policy(model, obs)
 
     for _ in range(num_steps):
         action, _ = model.predict(obs, deterministic=True)
@@ -138,7 +130,7 @@ def evaluate(name: str, num_steps: int=1000) -> None:
             else:
                 stuck += 1
 
-        # time.sleep(0.03)
+        time.sleep(0.2)
     env.close()
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
@@ -179,7 +171,6 @@ def random_search(
         "r_collision": [-10],
         "r_time": [-0.01],
         "r_distance": [-0.01],
-        "world_size": [8],
         "num_static_obstacles": [3],
         "bps_size": [15, 20, 25],#, 60, 90],
         "fork": [True],
@@ -243,7 +234,7 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=3_000_000, num_workers=8)
+    # start_training(num_steps=1_000_000, num_workers=8)
 
     # continue_training(num_steps=1_000_000, num_workers=8)
 

@@ -7,6 +7,7 @@ import numpy as np
 from numpy.random import Generator
 
 from adlr_environments.utils import eucl, draw_arrow
+from adlr_environments.constants import RED, GREEN, BLUE, BLACK
 
 
 class Entity(ABC):
@@ -16,10 +17,11 @@ class Entity(ABC):
     color: tuple
     size: float
 
-    def reset(self, world_size: float, entities: list, generator: Generator):
+    def reset(self, entities: list, generator: Generator):
         """Reset the entity for the next episode"""
         while True:
-            self.position = generator.uniform(0, world_size, 2).astype(np.float32)
+            # NOTE: spawn entities on a bit smaller area to avoid world edges
+            self.position = generator.uniform(-0.9, 0.9, 2)
             if not any(self.collision(e) for e in entities):
                 entities.append(self)
                 break
@@ -30,41 +32,42 @@ class Entity(ABC):
         sizes = self.size + other.size
         return distance < sizes
 
-    def draw(self, canvas: pygame.Surface, world2canvas: float):
+    def draw(self, canvas: pygame.Surface):
         """Draw the entity on the canvas"""
         pygame.draw.circle(
-            canvas,
-            self.color,
-            (self.position * world2canvas),
-            self.size * world2canvas
+            surface=canvas,
+            color=self.color,
+            center=(self.position + 1) * canvas.get_width() / 2,
+            radius=self.size * canvas.get_width() / 2
         )
 
 
 class Agent(Entity):
     """2D agent"""
 
-    def __init__(self) -> None:
+    def __init__(self, size: float=0.1) -> None:
         """Create a new agent"""
         self.position = np.zeros(2, dtype=np.float32)
         self.speed = np.zeros(2, dtype=np.float32)
-        self.color = (0, 0, 255)
-        self.size = 0.3
+        self.color = BLUE
+        self.size = size
 
-    def reset(self, world_size: float, entities: list, generator: Generator):
+    def reset(self, entities: list, generator: Generator):
         """Reset the entity for the next episode"""
-        super().reset(world_size, entities, generator)
+        super().reset(entities, generator)
         self.speed = np.zeros(2, dtype=np.float32)
 
-    def draw(self, canvas: pygame.Surface, world2canvas: float):
+    def draw(self, canvas: pygame.Surface):
         """Draw the agent and its direction on the canvas"""
-        super().draw(canvas, world2canvas)
-        start = (world2canvas * self.position).tolist()
-        end = (world2canvas * (self.position + self.speed)).tolist()
+        super().draw(canvas)
+        scale = canvas.get_width() / 2
+        start = ((self.position + 1) * scale).tolist()
+        end = ((self.position + self.speed * 0.3 + 1) * scale).tolist()
         draw_arrow(
             canvas,
             pygame.Vector2(start),
             pygame.Vector2(end),
-            color=(0, 0, 0),
+            color=BLACK,
             body_width=5,
             head_width=20,
             head_height=12
@@ -74,36 +77,33 @@ class Agent(Entity):
 class Target(Entity):
     """2D Target box"""
 
-    def __init__(self, world_size: float) -> None:
+    def __init__(self, size: float=0.1) -> None:
         """Create a new target"""
-        self.position = 0.7 * world_size * np.ones(2, dtype=np.float32)
-        self.color = (255, 0, 0)
-        self.size = 0.5
+        self.position = 0.7 * np.ones(2, dtype=np.float32)
+        self.color = RED
+        self.size = size
 
 
 class StaticObstacle(Entity):
     """Static obstacle"""
 
-    def __init__(self) -> None:
+    def __init__(self, size: float=0.1) -> None:
         """Create a new static obstacle"""
         self.position = np.zeros(2)
-        self.color = (0, 0, 0)
-        self.size = 0.5
+        self.color = BLACK
+        self.size = size
 
 
 class DynamicObstacle(Entity):
     """Dynamic obstacle"""
 
-    def __init__(self, speed: tuple=(1, 1)) -> None:
+    def __init__(self, size: float=0.1, speed: np.ndarray=np.ones(2)) -> None:
         """Create a new dynamic obstacle"""
         self.position = np.zeros(2)
-        self.color = (0, 255, 0)
-        self.size = 0.5
-        self.speed = np.array(speed)
+        self.color = GREEN
+        self.size = size
+        self.speed = speed
 
-    def move(self, bounds: tuple=None):
+    def move(self):
         """Move the dynamic obstacle"""
-        self.position += self.speed
-        if bounds:
-            self.position = np.clip(self.position, 0, np.array(bounds))
-        self.position = self.position.astype(np.float32)
+        self.position = np.clip(self.position + self.speed, -1, 1)

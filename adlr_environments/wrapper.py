@@ -5,37 +5,20 @@ import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.utils import MAX_EPISODE_STEPS #, eucl
-
-
-class NormalizeWrapper(gym.Wrapper):
-    """Normalize bps distance observations into the range of [0, 1]"""
-
-    def __init__(self, env):
-        """Create normalization wrapper"""
-
-        super().__init__(env)
-
-    def step(self, action):
-        """Perform one step in the environment"""
-
-        obs, reward, terminated, truncated, info = self.env.step(action)
-
-        obs = (obs - np.min(obs)) / (np.max(obs) - np.min(obs))
-
-        return obs, reward, terminated, truncated, info
+from adlr_environments.constants import MAX_EPISODE_STEPS
 
 
 class RewardWrapper(gym.Wrapper):
     """Customize the reward function of the environment"""
 
-    def __init__(self, env: gym.Env, options): #: dict | None=None) -> None:
+    def __init__(self, env: gym.Env, options: dict=None) -> None:
         """Create reward function wrapper"""
 
         self.r_target = options.get("r_target", 1)
         self.r_collision = options.get("r_collision", -1)
         self.r_time = options.get("r_time", 0)
         self.r_distance = options.get("r_distance", 0)
+        self.r_wall = options.get("r_wall", 0)
         super().__init__(env)
 
     def step(self, action):
@@ -71,11 +54,12 @@ class RewardWrapper(gym.Wrapper):
         # penalize long simulation times
         r_time = self.r_time * info["timestep"] / MAX_EPISODE_STEPS
 
-        # reward target reaching and obstacle avoidance
+        # reward target reaching and obstacle avoidance and penalize wall hits
         r_win = self.r_target if info["win"] else 0
         r_crash = self.r_collision if info["collision"] else 0
+        r_wall = self.r_wall if info["wall_collision"] else 0
 
-        reward = r_time + r_win + r_crash
+        reward = r_time + r_win + r_crash + r_wall
         #######################################################################
 
         return obs, reward, terminated, truncated, info
