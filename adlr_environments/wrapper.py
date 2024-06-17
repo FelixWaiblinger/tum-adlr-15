@@ -6,31 +6,14 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
 from adlr_environments.constants import MAX_EPISODE_STEPS #, eucl
-
-
-class NormalizeObservationWrapper(gym.Wrapper):  # VecEnvWrapper):
-    """Normalize bps distance observations into the range of [0, 1]"""
-
-    def __init__(self, env):
-        """Create normalization wrapper"""
-
-        super().__init__(env)
-
-    def step(self, action):
-        """Perform one step in the environment"""
-
-        obs, reward, terminated, truncated, info = self.env.step(action)
-
-        #obs = (obs - np.min(obs)) / (np.max(obs) - np.min(obs))
-        obs = obs/10 - 1
-
-        return obs, reward, terminated, truncated, info
+from adlr_environments.constants import MAX_EPISODE_STEPS
 
 
 class RewardWrapper(gym.Wrapper):
     """Customize the reward function of the environment"""
 
     def __init__(self, env: gym.Env, options):  #: dict | None=None) -> None:
+    def __init__(self, env: gym.Env, options: dict=None) -> None:
         """Create reward function wrapper"""
 
         self.r_target = options.get("r_target", 1)

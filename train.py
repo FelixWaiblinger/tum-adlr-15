@@ -6,9 +6,14 @@ import time
 from typing import Dict
 import numpy as np
 import gymnasium as gym
+from gymnasium.wrappers import FlattenObservation
+from stable_baselines3 import PPO, SAC
 from gymnasium.wrappers import FlattenObservation, NormalizeObservation
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecVideoRecorder
+import adlr_environments  # pylint: disable=unused-import
+from adlr_environments.wrapper import RewardWrapper
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize, VecVideoRecorder
 from adlr_environments.wrapper import RewardWrapper, HParamCallback, NormalizeObservationWrapper
 from adlr_environments.utils import to_py_dict, linear, draw_policy
@@ -90,6 +95,8 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
 
     # draw_policy(model, observation, options["world_size"])
 
+    draw_policy(model, obs)
+
     for _ in range(num_steps):
         action, test = model.predict(observation, deterministic=True)
         observation, reward, terminated, truncated, info = env.step(action)
@@ -162,7 +169,6 @@ def random_search(
         "r_collision": [-10],
         "r_time": [-0.01],
         "r_distance": [-0.01],
-        "world_size": [8],
         "num_static_obstacles": [3],
         "bps_size": [15, 20, 25],  # , 60, 90],
         "fork": [True],

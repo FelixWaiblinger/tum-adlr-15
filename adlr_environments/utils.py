@@ -8,19 +8,18 @@ import matplotlib.pyplot as plt
 
 
 def draw_policy(
-        agent,
-        observation: np.ndarray,
-        world_size: float,
-        resolution: int = 10
+    agent,
+    observation: np.ndarray,
+    arrows_per_row: int=10
 ) -> None:
     """Plot a vector field representing the actions chosen by the policy for
     any position in the environment
     """
 
     # start arrows in the middle of "their box"
-    offset = 0.5 * (world_size / resolution)
-    for i in np.linspace(offset, world_size - offset, resolution):
-        for j in np.linspace(offset, world_size - offset, resolution):
+    offset = 2 / (arrows_per_row + 1)
+    for i in np.linspace(-1 + offset, 1 - offset, arrows_per_row):
+        for j in np.linspace(-1 + offset, 1 - offset, arrows_per_row):
             observation[0, :2] = np.array([i, j], dtype=np.float32)
             target, _ = agent.predict(observation, deterministic=True)
             target = 0.5 * target[0]  # shorten for visibility
