@@ -1,19 +1,14 @@
 """Environment wrappers"""
-
 import numpy as np
 import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.constants import MAX_EPISODE_STEPS #, eucl
-from adlr_environments.constants import MAX_EPISODE_STEPS
-
 
 class RewardWrapper(gym.Wrapper):
     """Customize the reward function of the environment"""
 
-    def __init__(self, env: gym.Env, options):  #: dict | None=None) -> None:
-    def __init__(self, env: gym.Env, options: dict=None) -> None:
+    def __init__(self, env: gym.Env, options: dict = None) -> None:
         """Create reward function wrapper"""
 
         self.r_target = options.get("r_target", 1)
@@ -43,7 +38,7 @@ class RewardWrapper(gym.Wrapper):
         #     print("collision")
         # if info["wall_collision"]:
         #     print("wall_collision")
-        #print("reward:", reward)
+        # print("reward:", reward)
 
         return obs, reward, terminated, truncated, info
 

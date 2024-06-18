@@ -8,26 +8,20 @@ import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
 from stable_baselines3 import PPO, SAC
-from gymnasium.wrappers import FlattenObservation, NormalizeObservation
-from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecVideoRecorder
-import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import RewardWrapper
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize, VecVideoRecorder
-from adlr_environments.wrapper import RewardWrapper, HParamCallback, NormalizeObservationWrapper
-from adlr_environments.utils import to_py_dict, linear, draw_policy
+from adlr_environments.wrapper import RewardWrapper, HParamCallback
+from adlr_environments.utils import to_py_dict, linear
 from adlr_environments.constants import OPTIONS, AGENT, AGENT_PATH, RESULT_PATH, LOG_PATH, MODEL_PATH, VIDEO_PATH
 
 
-def environment_creation(num_workers: int = 1, options: Dict = None,
+def environment_creation(num_workers: int = 2, options: Dict = None,
                          vector_environment: bool = False):
     """Create environment"""
 
     def env_factory(render_mode: str = None):
         env = gym.make(id="World2D-v0", render_mode=render_mode, options=options)
         env = FlattenObservation(env)
-        env = NormalizeObservationWrapper(env)
         env = RewardWrapper(env, options)
         return env
 
@@ -48,13 +42,12 @@ def environment_creation(num_workers: int = 1, options: Dict = None,
 
 def start_training(
         num_steps: int,
-        num_workers: int = 1,
         vector_environment: bool = False
 ) -> None:
     """Train a new agent from scratch"""
 
-    env = environment_creation(num_workers=num_workers, options=OPTIONS, vector_environment=vector_environment)
-    model = PPO("MlpPolicy", env, tensorboard_log=LOG_PATH)  # learning_rate=linear(0.001))
+    env = environment_creation(options=OPTIONS, vector_environment=vector_environment)
+    model = SAC("MlpPolicy", env, tensorboard_log=LOG_PATH)  # learning_rate=linear(0.001))
     model.learn(total_timesteps=num_steps, progress_bar=True, callback=HParamCallback(env_params=OPTIONS))
     model.save(AGENT_PATH)
 
@@ -95,7 +88,7 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
 
     # draw_policy(model, observation, options["world_size"])
 
-    draw_policy(model, obs)
+    #draw_policy(model, obs)
 
     for _ in range(num_steps):
         action, test = model.predict(observation, deterministic=True)
@@ -104,7 +97,6 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
         env.render()
 
         if terminated:
-            observation, info = env.reset()
             episodes += 1
             if info["win"]:
                 wins += 1
@@ -112,6 +104,7 @@ def evaluate(name: str, num_steps: int = 1000) -> None:
                 crashes += 1
             else:
                 stuck += 1
+            observation, info = env.reset()
 
         time.sleep(0.1)
 
@@ -232,7 +225,7 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    #start_training(num_steps=1000000, num_workers=6, vector_environment=True)
+    start_training(num_steps=10000, vector_environment=False)
 
     #continue_training(num_steps=1000000, num_workers=8)
 

@@ -18,9 +18,9 @@ DEFAULT_OPTIONS = {
     "step_length": 0.1,
     "size_agent": 0.1,
     "size_target": 0.1,
-    "num_static_obstacles": 5,
+    "num_static_obstacles": 4,
     "size_static": 0.1,
-    "num_dynamic_obstacles": 0,
+    "num_dynamic_obstacles": 3,
     "size_dynamic": 0.1,
     "min_speed": -0.1,
     "max_speed": 0.1,
@@ -169,8 +169,8 @@ class World2D(gym.Env):
         #     overlay.fill(GREEN if self.win else RED)
         #     self.window.blit(overlay, (0, 0))
 
-        print([self.target.collision(obs) for obs in self.static_obstacles + self.dynamic_obstacles])
-        input("next")
+        #print([self.target.collision(obs) for obs in self.static_obstacles + self.dynamic_obstacles])
+        #input("next")
 
         self.timestep = 0
         self.win = False
@@ -185,7 +185,7 @@ class World2D(gym.Env):
         # move agent according to chosen action
         action = action / np.linalg.norm(action)
         self.agent.speed = action.astype(np.float32)
-        self.velocity = 0.6 * self.velocity + 0.4 * step_length * action
+        self.velocity = 0.6 * self.velocity + 0.4 * self.options["step_length"] * action
 
         self.agent.position = np.clip(
             self.agent.position + self.step_length * action,

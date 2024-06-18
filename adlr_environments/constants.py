@@ -21,14 +21,15 @@ OPTIONS = {
     "world_size": 6,
     "step_length": 0.4,
     "num_static_obstacles": 4,
-    "render": False,
+    "num_dynamic_obstacles": 3,
+    "render": None,
     "random_obstacles": True,
     "random_agent": True,
     "random_target": True
 }
 
 # path's
-AGENT = "n2"
+AGENT = "d1"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 VIDEO_PATH = "./videos/"
