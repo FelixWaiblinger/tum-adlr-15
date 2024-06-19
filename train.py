@@ -12,8 +12,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecVideoRecorder
 from adlr_environments.wrapper import RewardWrapper, HParamCallback
 from adlr_environments.utils import to_py_dict, linear
-from adlr_environments.constants import OPTIONS, AGENT, AGENT_PATH, RESULT_PATH, LOG_PATH, MODEL_PATH, VIDEO_PATH
-
+from adlr_environments.constants import OPTIONS, AGENT_PATH, RESULT_PATH, LOG_PATH, MODEL_PATH, VIDEO_PATH
 
 def environment_creation(num_workers: int = 2, options: Dict = None,
                          vector_environment: bool = False):
