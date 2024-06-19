@@ -9,7 +9,7 @@ OPTIONS = {
     "r_distance": 0,
     "r_wall_collision": -0.1,
     "world_size": 6,
-    "step_length": 0.4,
+    "step_length": 0.1,
     "num_static_obstacles": 4,
     "num_dynamic_obstacles": 3,
     "render": None,
@@ -19,9 +19,12 @@ OPTIONS = {
 }
 
 # path's
-AGENT = "d1"
+AGENT = "d2"
 AGENT_PATH = "./agents/" + AGENT
 LOG_PATH = "./logs/" + AGENT
 VIDEO_PATH = "./videos/"
 RESULT_PATH = "./agents/random_search_results.json"
 MODEL_PATH = "./agents/random_search_model"
+DATASET_PATH = "./datasets/" + AGENT + ".csv"
+DATASET_NAME = "set1"
+TRAININGS_DATA_PATH = "./Trainingsdata/" + DATASET_NAME + "/"
