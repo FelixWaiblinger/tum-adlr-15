@@ -1,6 +1,6 @@
 """2D environment"""
 
-from typing import Any, Dict, Tuple
+from typing import Any, List, Dict, Tuple
 import copy
 
 import pygame as pg
@@ -10,7 +10,7 @@ from gymnasium import spaces
 
 from state_representation.bps import BPS #, img2pc
 from adlr_environments.utils import eucl
-from adlr_environments.constants import MAX_EPISODE_STEPS, WHITE, GREEN, RED
+from adlr_environments.constants import MAX_EPISODE_STEPS, WHITE #, GREEN, RED
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
 
@@ -62,8 +62,8 @@ class World2D(gym.Env):
         self.collision = False
         self.agent = Agent(options["size_agent"])
         self.target = Target(options["size_target"])
-        self.static_obstacles: list[StaticObstacle] = []
-        self.dynamic_obstacles: list[DynamicObstacle] = []
+        self.static_obstacles: List[StaticObstacle] = []
+        self.dynamic_obstacles: List[DynamicObstacle] = []
         self.pointcloud = None
         self.timestep = 0
         self.bps = BPS(options["seed"], num_bp)
@@ -82,7 +82,6 @@ class World2D(gym.Env):
         )
 
     def _get_observations(self):
-        # TODO: only considers static obstacles -> add dynamic later
         obstacles = self.static_obstacles + self.dynamic_obstacles
         pointcloud = np.array([o.position for o in obstacles])
         bps_distances = self.bps.encode(pointcloud)
@@ -157,9 +156,6 @@ class World2D(gym.Env):
         #     overlay.fill(GREEN if self.win else RED)
         #     self.window.blit(overlay, (0, 0))
 
-        print([self.target.collision(obs) for obs in self.static_obstacles + self.dynamic_obstacles])
-        input("next")
-
         self.timestep = 0
         self.win = False
         self.collision = False
@@ -182,7 +178,7 @@ class World2D(gym.Env):
         # move dynamic obstacles
         obstacles = self.static_obstacles + self.dynamic_obstacles
         for obs in self.dynamic_obstacles:
-            dir = pg.Vector2(obs.speed.tolist())
+            speed = pg.Vector2(obs.speed.tolist())
             for other in obstacles:
                 # obstacles cannot collide with themselves
                 if obs is other:
@@ -190,23 +186,23 @@ class World2D(gym.Env):
                 # obstacle collides with another obstacle
                 if obs.collision(other):
                     normal = other.position - obs.position
-                    if np.all(normal < 1e-3): # problematic if close to 0 
+                    if np.all(normal < 1e-3): # problematic if close to 0
                         normal = -obs.speed
-                    dir.reflect_ip(pg.Vector2(normal.tolist()).normalize())
+                    speed.reflect_ip(pg.Vector2(normal.tolist()).normalize())
             # obstacle collides with an outer wall
             wall_east, wall_south = (obs.position + obs.size > 1).tolist()
             wall_west, wall_north = (obs.position - obs.size < -1).tolist()
             if wall_north:
-                dir.reflect_ip(pg.Vector2([0, 1]))
+                speed.reflect_ip(pg.Vector2([0, 1]))
             elif wall_east:
-                dir.reflect_ip(pg.Vector2([-1, 0]))
+                speed.reflect_ip(pg.Vector2([-1, 0]))
             elif wall_south:
-                dir.reflect_ip(pg.Vector2([0, -1]))
+                speed.reflect_ip(pg.Vector2([0, -1]))
             elif wall_west:
-                dir.reflect_ip(pg.Vector2([1, 0]))
+                speed.reflect_ip(pg.Vector2([1, 0]))
             # set new speed direction
-            obs.speed = np.array([dir.x, dir.y])
-                
+            obs.speed = np.array([speed.x, speed.y])
+
             obs.move()
 
         # check collisions
@@ -252,7 +248,8 @@ class World2D(gym.Env):
         self.target.draw(canvas)
 
         # draw the agent
-        self.agent.draw(canvas)
+        # NOTE: 'draw_direction=False' for dataset generation
+        self.agent.draw(canvas, draw_direction=False)
 
         # create pointcloud from currently rendered image
         image = copy.deepcopy(pg.surfarray.pixels3d(canvas))

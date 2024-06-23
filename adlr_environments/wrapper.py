@@ -11,15 +11,15 @@ from adlr_environments.constants import MAX_EPISODE_STEPS
 class RewardWrapper(gym.Wrapper):
     """Customize the reward function of the environment"""
 
-    def __init__(self, env: gym.Env, options: dict=None) -> None:
+    def __init__(self, env: gym.Env) -> None:
         """Create reward function wrapper"""
-
-        self.r_target = options.get("r_target", 1)
-        self.r_collision = options.get("r_collision", -1)
-        self.r_time = options.get("r_time", 0)
-        self.r_distance = options.get("r_distance", 0)
-        self.r_wall = options.get("r_wall", 0)
         super().__init__(env)
+
+        self.r_target = 10
+        self.r_collision = -10
+        self.r_time = -0.05
+        self.r_distance = 2
+        self.r_wall = -0.1
 
     def step(self, action):
         """Perform one step in the environment"""
