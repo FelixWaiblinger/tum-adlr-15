@@ -26,18 +26,27 @@ class Encoder(nn.Module):
 
         layers = OrderedDict()
         for i in range(num_layers):
-            layers["conv"+str(i)] = nn.Conv2d(
+            layers["conv1"+str(i)] = nn.Conv2d(
                 in_channels=channels[i],
                 out_channels=channels[i+1],
                 kernel_size=kernels[i],
-                padding=1,
+                padding=2,
                 stride=2
             )
-            layers["act"+str(i)] = nn.ReLU()
+            layers["conv2"+str(i)] = nn.Conv2d(
+                in_channels=channels[i+1],
+                out_channels=channels[i+1],
+                kernel_size=3,
+                padding=2,
+                stride=1
+            )
+            layers["pool"+str(i)] = nn.MaxPool2d(kernel_size=2, padding=0)
+            layers["act"+str(i)] = nn.LeakyReLU(negative_slope=0.2)
+            layers["bnrm"+str(i)] = nn.BatchNorm2d(channels[i+1])
 
         layers["flat"] = nn.Flatten()
-        # NOTE: 256 is calculated as input shrinks from 128 to 16 (squared)
-        layers["latent"] = nn.Linear(256 * channels[-1], latent_size)
+        # NOTE: 4 is calculated as input shrinks from 128 to 2 (squared)
+        layers["latent"] = nn.Linear(16 * channels[-1], latent_size)
 
         self.net = nn.Sequential(layers)
         self.latent_size = latent_size
@@ -67,9 +76,8 @@ class Decoder(nn.Module):
             f"num_layers {num_layers} and channels {channels} do not fit!"
 
         self.linear = nn.Sequential(OrderedDict(
-            # NOTE: 256 is calculated as input shrinks from 128 to 16 (squared)
-            latent=nn.Linear(latent_size, 256 * channels[0]),
-            act=nn.ReLU()
+            # NOTE: 4 is calculated as input shrinks from 128 to 2 (squared)
+            latent=nn.Linear(latent_size, 4 * channels[0]),
         ))
 
         layers = OrderedDict()
@@ -79,28 +87,28 @@ class Decoder(nn.Module):
                 out_channels=channels[i+1],
                 kernel_size=kernels[i],
                 output_padding=1,
-                padding=1,
+                padding=1 if i+1 < num_layers else 2, # NOTE: caused by kernel
                 stride=2
             )
-            layers["act1"+str(i)] = nn.ReLU()
-            layers["conv"+str(i)] = nn.Conv2d(
-                in_channels=channels[i+1],
-                out_channels=channels[i+1],
-                kernel_size=kernels[i],
-                padding=1,
-            )
-            if i+1 < num_layers:
-                layers["act2"+str(i)] = nn.ReLU()
-            else:
-                layers["act2"+str(i)] = nn.Sigmoid()
+            layers["upsm"+str(i)] = nn.Upsample(scale_factor=2, mode="bicubic")
+            layers["act1"+str(i)] = nn.LeakyReLU(negative_slope=0.2)
+            layers["bnrm"+str(i)] = nn.BatchNorm2d(channels[i+1])
+        
+        # layers["outc"] = nn.ConvTranspose2d(
+        #     in_channels=channels[-1],
+        #     out_channels=channels[-1],
+        #     kernel_size=3,
+        #     padding=1
+        # )
+        layers["outa"] = nn.Sigmoid()
 
         self.net = nn.Sequential(layers)
 
     def forward(self, x):
         """Forward pass"""
         x = self.linear(x)
-        # NOTE: 256 is calculated as input shrinks from 128 to 16 (squared)
-        x = x.reshape(x.shape[0], -1, 16, 16)
+        # NOTE: 2 is calculated as input shrinks from 128 to 2 (squared)
+        x = x.reshape(x.shape[0], -1, 2, 2)
         return self.net.forward(x)
 
 

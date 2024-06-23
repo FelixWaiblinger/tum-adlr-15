@@ -29,7 +29,36 @@ class ImageDataset(Dataset):
         return self.images[index]
 
 
-# TODO: quick and dirty
-class To01Transform:
+class CombineTransform:
+    def __init__(self, transforms: list) -> None:
+        self.transforms = transforms
+
+    def __call__(self, batch: torch.Tensor) -> Any:
+        for transform in self.transforms:
+            batch = transform(batch)
+        return batch
+
+
+class NormalizeTransform:
+    def __init__(self, start: tuple, end: tuple) -> None:
+        self.a, self.b = start
+        self.c, self.d = end
+        assert self.a != self.b, f"Start range must be a non-empty interval!"
+
     def __call__(self, batch: torch.Tensor):
-        return batch / 255
+        factor = (self.d - self.c) / (self.b - self.a)
+        return self.c + factor * (batch - self.a)
+
+
+class StandardizeTransform:
+    def __init__(self, mean=None, std=None, dim: tuple=None) -> None:
+        self.mean = mean
+        self.std = std
+        self.dim = dim
+
+    def __call__(self, batch: torch.Tensor):
+        if not self.mean:
+            self.mean = batch.mean(dim=self.dim, keepdims=True)
+        if not self.std:
+            self.std = batch.std(dim=self.dim, keepdims=True)
+        return (batch - self.mean) / self.std

@@ -8,18 +8,23 @@ from tqdm.auto import tqdm
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-from state_representation import AutoEncoder, ImageDataset, To01Transform
+from state_representation import AutoEncoder, ImageDataset, CombineTransform, \
+    NormalizeTransform, StandardizeTransform
 from adlr_environments.utils import create_env
 from train_agent import ENV_OPTIONS, WRAPPER
 
 
 DATA_PATH = "./state_representation/reset_image_data"
 MODEL_PATH = "./state_representation/autoencoder"
+N_SAMPLES = 30000
 
-CHANNELS = [3, 8, 16, 32]
-KERNELS = [3, 3, 3]
-BATCH_SIZE = 32
-EPOCHS = 10
+LATENT_SIZE = 500
+N_LAYERS = 3
+CHANNELS = [3, 64, 128, 256]
+KERNELS = [5, 3, 3]
+BATCH_SIZE = 64
+EPOCHS = 20
+VAL_RATE = 0.1
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
@@ -31,8 +36,12 @@ def create_tqdm_bar(iterable, desc):
 def training():
     """Train an autoencoder from scratch"""
     # load and prepare the data
-    dataset = ImageDataset(DATA_PATH, transform=To01Transform())
-    train_idx, val_idx = train_test_split(range(len(dataset)), test_size=0.2)
+    transform = CombineTransform([
+        NormalizeTransform(start=(0, 255), end=(0, 1)),
+        # StandardizeTransform()
+    ])
+    dataset = ImageDataset(DATA_PATH, transform=transform)
+    train_idx, val_idx = train_test_split(range(N_SAMPLES), test_size=VAL_RATE)
 
     train_loader = DataLoader(
         Subset(dataset, train_idx),
@@ -47,10 +56,10 @@ def training():
 
     # create the model
     model = AutoEncoder(
-        num_layers=3,
+        num_layers=N_LAYERS,
         channels=CHANNELS,
         kernels=KERNELS,
-        latent_size=50,
+        latent_size=LATENT_SIZE,
         device=DEVICE
     )
 
@@ -99,7 +108,6 @@ def evaluate():
     options.pop("fork")
 
     model = torch.load(MODEL_PATH + ".pt").to(DEVICE)
-
     env = create_env(
         wrapper=WRAPPER,
         render=False,
@@ -107,25 +115,29 @@ def evaluate():
         options=options
     )
 
-    transform = To01Transform()
+    transform = CombineTransform([
+        NormalizeTransform(start=(0, 255), end=(0, 1)),
+        # StandardizeTransform(dim=(2, 3))
+    ])
 
     _ = env.reset()
-    image = env.render()
-
-    plt.figure()
-    plt.imshow(image)
+    image_raw = env.render()
 
     # NOTE: this is ULTRA messy...
-    image = image[2::4, 2::4, :]
-    test = copy.deepcopy(image)
-    x = torch.stack([torch.from_numpy(test.transpose([2, 0, 1]))]).to(DEVICE)
-    reconstruction: torch.Tensor = model.forward(transform(x))[0].cpu()
-    reconstruction = reconstruction.detach().numpy().transpose([1, 2, 0]) * 255
+    image_tch = copy.deepcopy(image_raw[2::4, 2::4, :])
+    image_tch = image_tch.transpose([2, 0, 1])
+    image_tch = torch.stack([torch.from_numpy(image_tch)])
+    image_tch = transform(image_tch)
 
-    plt.figure()
-    plt.imshow(image)
-    plt.figure()
-    plt.imshow(reconstruction)
+    image_rec = model.forward(image_tch.to(DEVICE))
+    image_rec = image_rec.cpu().detach().numpy()[0]
+    image_rec = image_rec.transpose([1, 2, 0]) * 255
+
+    image_npy = image_tch.numpy()[0].transpose([1, 2, 0])
+
+    for img in [image_raw, image_npy, image_rec]:
+        plt.figure()
+        plt.imshow(img)
     plt.show()
 
 
@@ -143,20 +155,22 @@ def record_dataset(num_samples: int=100):
 
     dataset = []
     for i in range(num_samples):
-        # print(f"{(i/num_samples) * 100}%")
+        print(f"\rGenerating dataset: {(i/num_samples) * 100:3.2f}%", end="")
         _ = env.reset()
         image = env.render()
 
         # NOTE: use 128x128 as resolution instead of 512x512 to save memory
         image = image[2::4, 2::4, :].transpose([2, 0, 1])
         dataset.append(torch.from_numpy(image))
+        del image
 
     dataset = torch.stack(dataset)
     torch.save(dataset, DATA_PATH + ".pt")
+    print("")
 
 
 if __name__ == "__main__":
-    # record_dataset(num_samples=10000)
+    # record_dataset(num_samples=N_SAMPLES)
 
     # training()
 
