@@ -15,6 +15,7 @@ from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
 
 DEFAULT_OPTIONS = {
+    "world": None,
     "seed": 42,
     "step_length": 0.1,
     "size_agent": 0.1,
@@ -118,34 +119,52 @@ class World2D(gym.Env):
         options: Dict[str, Any] = None
     ) -> Tuple[Any, Dict[str, Any]]:
         """Reset environment between episodes"""
-
         super().reset(seed=seed)
         self.options.update((options if options else {}))
-        entities = [self.target]
 
-        # reset agent
-        self.agent.reset(entities, self.np_random)
-
-        # reset static obstacles
         self.static_obstacles = []
-        size = self.options["size_static"]
-
-        for _ in range(self.options["num_static_obstacles"]):
-            obstacle = StaticObstacle(size)
-            obstacle.reset(entities, self.np_random)
-            self.static_obstacles.append(obstacle)
-
-        # reset dynamic obstacles
         self.dynamic_obstacles = []
-        size = self.options["size_dynamic"]
+        static_size = self.options["size_static"]
+        dynamic_size = self.options["size_dynamic"]
         min_speed = self.options["min_speed"]
         max_speed = self.options["max_speed"]
 
-        for _ in range(self.options["num_dynamic_obstacles"]):
-            speed = self.np_random.uniform(min_speed, max_speed, size=2)
-            obstacle = DynamicObstacle(size, speed)
-            obstacle.reset(entities, self.np_random)
-            self.dynamic_obstacles.append(obstacle)
+        # reset the world to a predefined state
+        if self.options["world"]:
+            world: Dict = self.options["world"]
+            # reset target and agent
+            self.agent.position = np.array(world.get("agent"))
+            self.target.position = np.array(world.get("target"))
+            # reset static obstacles
+            for static in world.get("static"):
+                obstacle = StaticObstacle(static_size)
+                obstacle.position = np.array(static)
+                self.static_obstacles.append(obstacle)
+            # reset dynamic obstacles
+            for dynamic in world.get("dynamic"):
+                speed = self.np_random.uniform(min_speed, max_speed, size=2)
+                obstacle = DynamicObstacle(dynamic_size, speed)
+                obstacle.position = np.array(dynamic[:2])
+                self.dynamic_obstacles.append(obstacle)
+
+        # reset the world to a random state
+        else:
+            # reset target and agent
+            entities = [self.target]
+            self.agent.reset(entities, self.np_random)
+
+            # reset static obstacles
+            for _ in range(self.options["num_static_obstacles"]):
+                obstacle = StaticObstacle(static_size)
+                obstacle.reset(entities, self.np_random)
+                self.static_obstacles.append(obstacle)
+
+            # reset dynamic obstacles
+            for _ in range(self.options["num_dynamic_obstacles"]):
+                speed = self.np_random.uniform(min_speed, max_speed, size=2)
+                obstacle = DynamicObstacle(dynamic_size, speed)
+                obstacle.reset(entities, self.np_random)
+                self.dynamic_obstacles.append(obstacle)
 
         # NOTE: this is supposed to let the screen flicker in green or red
         #       depending on the agent winning or crashing in the last episode
