@@ -17,6 +17,7 @@ from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 DEFAULT_OPTIONS = {
     "world": None,
     "seed": 42,
+    "episode_length": MAX_EPISODE_STEPS,
     "step_length": 0.1,
     "size_agent": 0.1,
     "size_target": 0.1,
@@ -229,7 +230,7 @@ class World2D(gym.Env):
 
         self.timestep += 1
         terminated = self.win or self.collision
-        truncated = self.timestep >= MAX_EPISODE_STEPS
+        truncated = self.timestep >= self.options["episode_length"]
 
         observation = self._get_observations()
         info = self._get_infos()

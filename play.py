@@ -10,15 +10,16 @@ from stable_baselines3 import SAC
 
 import adlr_environments # pylint: disable=unused-import
 from adlr_environments import LEVEL1, LEVEL2, LEVEL3
-from adlr_environments.constants import Input
+from adlr_environments.constants import Input, MAX_PLAYMODE_STEPS
 from adlr_environments.wrapper import PlayWrapper, RewardWrapper
 
 AGENT = "./agents/sac_sparse"
-INPUTS = ["mouse", "keyboard", "joystick", "agent"]
+INPUTS = ["mouse", "keyboard", "controller", "agent"]
 LEVELS = [None, LEVEL1, LEVEL2, LEVEL3]
 NUM_GAMES = 5
 OPTIONS = {
-    "step_length": 0.05,
+    "episode_length": MAX_PLAYMODE_STEPS,
+    "step_length": 0.1,
     "size_agent": 0.075,
     "size_target": 0.1,
     "size_static": 0.1,
@@ -30,6 +31,7 @@ OPTIONS = {
 
 
 def parse_arguments():
+    """Parse commandline arguments"""
     parser = ArgumentParser()
     parser.add_argument("-l", "--level", type=int, default=0)
     parser.add_argument("-i", "--input", default="mouse")
@@ -51,28 +53,32 @@ def create_env(level: dict, control: Input):
     return e
 
 
-def print_round_start():
+def print_round_start(g: int):
+    """Print info at the start of each episode"""
     print("")
     for i in range(3):
-        print(f"\rRound {game+1} starts in {3 - i}...", end="")
+        print(f"\rRound {g+1} starts in {3 - i}...", end="")
         time.sleep(1)
     print("\n===== START =====")
 
 
-def print_round_info(game: int, timestep: int, reward: float):
-    print(f"\rRound: {game+1} | Time: {timestep}/500 | Reward: {reward:.3f}", end="")
+def print_round_info(g: int, t: int, r: float):
+    """Print info about current game repeatedly"""
+    print(f"\rRound: {g+1} | Time: {t}/{MAX_PLAYMODE_STEPS} | Reward: {r:.3f}", end="")
 
 
-def print_round_end(win: bool, reward: float):
-    msg = ('You Won!' if win else 'You Lost!')
-    print(f"\n{msg} | Total Reward: {reward}")
+def print_round_end(w: bool, r: float):
+    """Print info at the end of each episode"""
+    msg = ('You Won!' if w else 'You Lost!')
+    print(f"\n{msg} | Total Reward: {r}")
 
 
-def print_game_end(wins: int, total_rewards: list):
+def print_game_end(w: int, rs: list):
+    """Print info at the end of the game"""
     print("\n=== GAME OVER ===")
-    print(f"Episode Rewards: {[round(r, 3) for r in total_rewards]}")
-    print(f"Average Reward: {np.mean(total_rewards):.3f}")
-    print(f"Success Rate: {wins}/{NUM_GAMES} = {float(wins) / NUM_GAMES}")
+    print(f"Episode Rewards: {[round(r, 3) for r in rs]}")
+    print(f"Average Reward: {np.mean(rs):.3f}")
+    print(f"Success Rate: {w}/{NUM_GAMES} = {float(w) / NUM_GAMES}")
 
 
 if __name__ == "__main__":
@@ -91,9 +97,9 @@ if __name__ == "__main__":
     for game in range(NUM_GAMES):
         ep_rewards.append(0)
 
-        print_round_start()
+        print_round_start(game)
 
-        for _ in range(500):
+        for _ in range(MAX_PLAYMODE_STEPS):
             if model is not None:
                 action, _ = model.predict(observation, deterministic=True)
 

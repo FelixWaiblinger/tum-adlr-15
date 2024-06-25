@@ -74,7 +74,7 @@ class PlayWrapper(gym.Wrapper):
 
     def __init__(self, env: gym.Env, control: Input=Input.MOUSE):
         super().__init__(env)
-        assert control in [Input.MOUSE, Input.KEYBOARD, Input.JOYSTICK, Input.AGENT]
+        assert control in [Input.MOUSE, Input.KEYBOARD, Input.CONTROLLER, Input.AGENT]
         self.player_pos = None
         self.control = control
         pygame.init() # pylint: disable=no-member
@@ -90,25 +90,30 @@ class PlayWrapper(gym.Wrapper):
 
     def step(self, action):
         """Perform one step in the environment"""
+        # player controls the action using a mouse
         if self.control == Input.MOUSE:
             # get mouse position in world coordinates
             mouse_pos = np.array(pygame.mouse.get_pos())
             mouse_pos = (mouse_pos - 256) * (1. / 256)
-
             # action as clipped direction of player to mouse
             player_action = np.clip(mouse_pos - self.player_pos, -1, 1)
 
+        # player controls the action using a keyboard
         elif self.control == Input.KEYBOARD:
             keys = pygame.key.get_pressed()
             player_action = np.zeros(2)
+            # each key adds maximal input to direction vector
             player_action[0] += -1 if keys[K_LEFT] else 0
             player_action[0] += +1 if keys[K_RIGHT] else 0
             player_action[1] += -1 if keys[K_UP] else 0
             player_action[1] += +1 if keys[K_DOWN] else 0
 
-        elif self.control == Input.JOYSTICK:
+        # player controls the action using a controller
+        elif self.control == Input.CONTROLLER:
             stick = pygame.joystick.Joystick(0)
             player_action = np.array([stick.get_axis(0), stick.get_axis(1)])
+
+        # agent controls the action
         elif self.control == Input.AGENT:
             player_action = action
 
