@@ -18,6 +18,12 @@ class RewardWrapper(gym.Wrapper):
         self.r_wall_collision = options.get("r_wall_collision", 0)
         super().__init__(env)
 
+        self.r_target = 10
+        self.r_collision = -10
+        self.r_time = -0.05
+        self.r_distance = 2
+        self.r_wall = -0.1
+
     def step(self, action):
         """Perform one step in the environment"""
 

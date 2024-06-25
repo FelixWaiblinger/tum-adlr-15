@@ -62,21 +62,22 @@ class Agent(Entity):
         super().reset(entities, generator)
         self.speed = np.zeros(2, dtype=np.float32)
 
-    def draw(self, canvas: pygame.Surface):
+    def draw(self, canvas: pygame.Surface, draw_direction: bool=True):
         """Draw the agent and its direction on the canvas"""
         super().draw(canvas)
         scale = canvas.get_width() / 2
         start = ((self.position + 1) * scale).tolist()
         end = ((self.position + self.speed * 0.3 + 1) * scale).tolist()
-        draw_arrow(
-            canvas,
-            pygame.Vector2(start),
-            pygame.Vector2(end),
-            color=BLACK,
-            body_width=5,
-            head_width=20,
-            head_height=12
-        )
+        if draw_direction:
+            draw_arrow(
+                canvas,
+                pygame.Vector2(start),
+                pygame.Vector2(end),
+                color=BLACK,
+                body_width=5,
+                head_width=20,
+                head_height=12
+            )
 
     def wall_collision(self, world_size: float):
         x_position = self.position[0]

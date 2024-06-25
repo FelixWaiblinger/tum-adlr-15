@@ -1,10 +1,49 @@
 """Utility functions"""
 
-from typing import Callable
+from typing import Callable, Dict
 
 import pygame
 import numpy as np
+import gymnasium as gym
 import matplotlib.pyplot as plt
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+
+
+def create_env(
+    wrapper: list=None,
+    render: bool=False,
+    num_workers: int=1,
+    options: Dict=None
+):
+    """Create a vectorized environment
+    
+    Args:
+        ``wrapper``: list of (wrapper, kwargs_dict)
+        ``num_workers``: number of parallel environments
+        ``options``: dict of environment options
+    """
+
+    def env_factory(render):
+        env = gym.make(id="World2D-v0", render_mode=render, options=options)
+
+        for wrap, kwargs in wrapper:
+            env = wrap(env, **kwargs)
+
+        return env
+
+    fork = options.pop("fork", False)
+
+    # single/multi threading
+    env = make_vec_env(
+        env_factory,
+        n_envs=num_workers,
+        env_kwargs={"render": ("human" if render else "rgb_array")},
+        vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
+        vec_env_kwargs={"start_method": "fork"} if fork else {}
+    )
+
+    return env
 
 
 def draw_policy(
