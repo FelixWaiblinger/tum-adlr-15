@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt1
 
 import adlr_environments
 from utils import arg_parse, create_env, create_tqdm_bar
@@ -50,6 +51,13 @@ def training(epochs: int):
         shuffle=True
     )
 
+    # model = AutoEncoder(
+    #     num_layers=N_LAYERS,
+    #     channels=CHANNELS,
+    #     kernels=KERNELS,
+    #     latent_size=LATENT_SIZE,
+    #     device=DEVICE
+    # )
     # create the model
     model = AutoEncoder(
         num_layers=N_LAYERS,
@@ -75,6 +83,7 @@ def training(epochs: int):
                 curr_train_loss=f"{(train_loss / (train_iteration + 1)):.5f}",
                 val_loss=f"{val_loss:.5f}"
             )
+
 
         # check performance using validation data
         val_loss = 0
