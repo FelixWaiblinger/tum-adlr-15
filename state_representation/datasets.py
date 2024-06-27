@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 
 class ImageDataset(Dataset):
     """Unsupervised RGB image dataset stored in main memory"""
+
     def __init__(self, data: str, transform=None) -> None:
         """Create an RGB image dataset from '<data>.pt'"""
         super().__init__()
@@ -51,7 +52,7 @@ class NormalizeTransform:
 
 
 class StandardizeTransform:
-    def __init__(self, mean=None, std=None, dim: tuple=None) -> None:
+    def __init__(self, mean=None, std=None, dim: tuple = None) -> None:
         self.mean = mean
         self.std = std
         self.dim = dim
@@ -62,3 +63,19 @@ class StandardizeTransform:
         if not self.std:
             self.std = batch.std(dim=self.dim, keepdims=True)
         return (batch - self.mean) / self.std
+
+
+class GrayscaleTransform:
+    def __call__(self, img: torch.Tensor):
+        if not isinstance(img, torch.Tensor):
+            raise TypeError("Input should be a torch Tensor")
+
+        # Check if the input tensor has the correct dimensions
+        if len(img.shape) < 3 or img.shape[-3] != 3:
+            raise ValueError("Input tensor must have 3 channels in the last dimension")
+        weights = torch.tensor([0.2989, 0.5870, 0.1140])
+        weights = weights.view(3, 1, 1)
+        # Apply the weights to get the grayscale tensor
+        grayscale_tensor = ((img * weights).sum(dim=0)).to(torch.int32)
+
+        return grayscale_tensor

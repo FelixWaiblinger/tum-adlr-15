@@ -1,88 +1,59 @@
-"""Training"""
-
 import os
 import json
 import time
 from typing import Dict
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
 import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers import FlattenObservation
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecVideoRecorder
-import adlr_environments  # pylint: disable=unused-import
-from adlr_environments.wrapper import RewardWrapper
-from adlr_environments.utils import to_py_dict, linear, draw_policy
+from adlr_environments.wrapper import RewardWrapper, HParamCallback
+from adlr_environments.utils import to_py_dict, linear
+from adlr_environments.constants import OPTIONS, AGENT_PATH, RESULT_PATH, LOG_PATH, MODEL_PATH, VIDEO_PATH
 
-
-AGENT = "sac_sparse"
-AGENT_PATH = "./agents/" + AGENT
-LOG_PATH = "./logs/" + AGENT
-RESULT_PATH = "./agents/random_search_results.json"
-MODEL_PATH = "./agents/random_search_model"
-OPTIONS = {
-    "r_target": 10,
-    "r_collision": -10,
-    "r_time": -0.05,
-    "r_distance": 2,
-    "r_wall": -0.1,
-    "step_length": 0.1,
-    "size_agent": 0.075,
-    "size_target": 0.1,
-    "num_static_obstacles": 4,
-    "size_static": 0.1,
-    "num_dynamic_obstacles": 3,
-    "size_dynamic": 0.075,
-    "bps_size": 50,
-}
-
-
-def environment_creation(num_workers: int=1, options: Dict=None):
+def environment_creation(num_workers: int = 2, options: Dict = None,
+                         vector_environment: bool = False):
     """Create environment"""
 
-    def env_factory(render):
-        # create environment
-        env = gym.make(id="World2D-v0", render_mode=render, options=options)
-
-        # flatten observations
+    def env_factory(render_mode: str = None):
+        env = gym.make(id="World2D-v0", render_mode=render_mode, options=options)
         env = FlattenObservation(env)
-
-        # custom reward function
         env = RewardWrapper(env, options)
-
         return env
 
-    render = options.get("render", True)
-    fork = options.get("fork", False)
+    if vector_environment:
+        environment = make_vec_env(
+            env_factory,
+            n_envs=num_workers,
+            env_kwargs={"render_mode": (options["render"])},
+            vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
+        )
+        return environment
 
-    # single/multi threading
-    env = make_vec_env(
-        env_factory,
-        n_envs=num_workers,
-        env_kwargs={"render": ("human" if render else "rgb_array")},
-        vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
-        vec_env_kwargs={"start_method": "fork"} if fork else {}
-    )
-
-    return env
+    else:
+        render = options["render"]
+        environment = env_factory(render)
+        return environment
 
 
-def start_training(num_steps: int, num_workers: int=1):
+def start_training(
+        num_steps: int,
+        vector_environment: bool = False
+) -> None:
     """Train a new agent from scratch"""
 
-    options = OPTIONS
-    options.update({"fork": True, "render": False})
-
-    env = environment_creation(num_workers=num_workers, options=options)
-    model = SAC("MlpPolicy", env, tensorboard_log=LOG_PATH, learning_rate=linear(0.001))
-    model.learn(total_timesteps=num_steps, progress_bar=True)
+    env = environment_creation(options=OPTIONS, vector_environment=vector_environment)
+    model = SAC("MlpPolicy", env, tensorboard_log=LOG_PATH)  # learning_rate=linear(0.001))
+    model.learn(total_timesteps=num_steps, progress_bar=True, callback=HParamCallback(env_params=OPTIONS))
     model.save(AGENT_PATH)
 
 
-def continue_training(num_steps: int, new_name: str=None, num_workers: int=1):
+def continue_training(
+        num_steps: int,
+        new_name: str = None,
+        num_workers: int = 1
+) -> None:
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
@@ -100,38 +71,39 @@ def continue_training(num_steps: int, new_name: str=None, num_workers: int=1):
     model.save(new_name)
 
 
-def evaluate(name: str, num_steps: int=1000):
+def evaluate(name: str, num_steps: int = 1000) -> None:
     """Evaluate a trained agent"""
 
-    env = environment_creation(num_workers=1, options=OPTIONS)
+    options = OPTIONS
+    options.update({"render": "human"})
+
+    env = environment_creation(num_workers=1, options=options, vector_environment=False)
     model = SAC.load(name, env)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
-    obs = env.reset()
+    observation, _ = env.reset()
 
-    # NOTE: uncomment for video recording
-    # env = VecVideoRecorder(env, "./videos/", lambda x: x == 0, video_length=num_steps-1, name_prefix="static_sac_1dyn")
-    # obs = env.reset()
+    # draw_policy(model, observation, options["world_size"])
 
-    draw_policy(model, obs)
+    #draw_policy(model, obs)
 
     for _ in range(num_steps):
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, info = env.step(action)
+        action, test = model.predict(observation, deterministic=True)
+        observation, reward, terminated, truncated, info = env.step(action)
         rewards += reward
         env.render()
 
-        if done:
+        if terminated:
             episodes += 1
-            if info[0]["win"]:
+            if info["win"]:
                 wins += 1
-            elif info[0]["collision"]:
+            elif info["collision"]:
                 crashes += 1
             else:
                 stuck += 1
+            observation, info = env.reset()
 
-        time.sleep(0.2)
-    env.close()
+        time.sleep(0.1)
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
@@ -139,11 +111,27 @@ def evaluate(name: str, num_steps: int=1000):
     print(f"Stuckrate: {100 * (stuck / episodes):.2f}%")
 
 
+def video_evaluation(video_length: int = 1000, name: str = "test"):
+    options = OPTIONS
+    options.update({"render": "rgb_array"})
+    vec_env = environment_creation(num_workers=1, options=OPTIONS, vector_environment=True)
+    model = PPO.load(AGENT_PATH, vec_env)
+    obs = vec_env.reset()
+    vec_env = VecVideoRecorder(vec_env, VIDEO_PATH, record_video_trigger=lambda x: x == 0, video_length=video_length,
+                               name_prefix=name)
+
+    obs = vec_env.reset()
+    for _ in range(video_length + 1):
+        action, _ = model.predict(obs)
+        obs, _, _, _ = vec_env.step(action)
+    vec_env.close()
+
+
 def random_search(
-    # search_space: dict,
-    num_tests: int=100,
-    num_train_steps: int=10000,
-    num_workers: int=1
+        # search_space: dict,
+        num_tests: int = 100,
+        num_train_steps: int = 10000,
+        num_workers: int = 1
 ) -> None:
     """Select hyperparameters in search space randomly"""
 
@@ -172,7 +160,7 @@ def random_search(
         "r_time": [-0.01],
         "r_distance": [-0.01],
         "num_static_obstacles": [3],
-        "bps_size": [15, 20, 25],#, 60, 90],
+        "bps_size": [15, 20, 25],  # , 60, 90],
         "fork": [True],
         "render": [False],
     }
@@ -234,8 +222,10 @@ def random_search(
 if __name__ == '__main__':
     # random_search(num_tests=50, num_train_steps=200000, num_workers=6)
 
-    # start_training(num_steps=1_000_000, num_workers=8)
+    start_training(num_steps=10000, vector_environment=False)
 
-    # continue_training(num_steps=1_000_000, num_workers=8)
+    #continue_training(num_steps=1000000, num_workers=8)
 
-    evaluate(AGENT_PATH)
+    #evaluate(AGENT_PATH)
+
+    #video_evaluation(video_length=100, name="v1")
