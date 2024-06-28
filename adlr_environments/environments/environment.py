@@ -3,17 +3,20 @@
 from typing import Any, List, Dict, Tuple
 import copy
 
+import torch
 import pygame as pg
 import numpy as np
+import matplotlib.pyplot as plt
 import gymnasium as gym
 from gymnasium import spaces
 
-from state_representation.bps import BPS #, img2pc
 from adlr_environments.utils import eucl
 from adlr_environments.constants import MAX_EPISODE_STEPS, WHITE #, GREEN, RED
+from state_representation import AutoEncoder, BPS, NormalizeTransform
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
 
+AUTOENCODER = "./state_representation/autoencoder.pt"
 DEFAULT_OPTIONS = {
     "world": None,
     "seed": 42,
@@ -27,7 +30,7 @@ DEFAULT_OPTIONS = {
     "size_dynamic": 0.1,
     "min_speed": -0.1,
     "max_speed": 0.1,
-    "bps_size": 100,
+    "latent_size": 100,
 }
 
 
@@ -56,26 +59,32 @@ class World2D(gym.Env):
         self.window = None
         self.clock = None
         self.options = options
+        self.plot = None
 
-        num_bp = options["bps_size"]
+        latent = options["latent_size"]
 
         # observations
         self.win = False
         self.collision = False
+        self.pointcloud = None
+        self.timestep = 0
+        self.model: AutoEncoder = torch.load(AUTOENCODER)
+        self.transform = NormalizeTransform(start=(0, 255), end=(0, 1))
         self.agent = Agent(options["size_agent"])
         self.target = Target(options["size_target"])
         self.static_obstacles: List[StaticObstacle] = []
         self.dynamic_obstacles: List[DynamicObstacle] = []
-        self.pointcloud = None
-        self.timestep = 0
-        self.bps = BPS(options["seed"], num_bp)
+        self.bps = BPS(options["seed"], latent)
         self.step_length = options["step_length"]
         self.observation_space = spaces.Dict({
+            # NOTE: AutoEncoder
             "agent": spaces.Box(-1, 1, shape=(4,), dtype=np.float32),
             "target": spaces.Box(-1, 1, shape=(2,), dtype=np.float32),
-            "state": spaces.Box(
-                low=0, high=2 * np.sqrt(2), shape=(num_bp,), dtype=np.float32
-            )
+            "state": spaces.Box(-1, 1, shape=(latent,), dtype=np.float32)
+            # NOTE: BPS
+            # "state": spaces.Box(
+            #     low=0, high=2 * np.sqrt(2), shape=(latent,), dtype=np.float32
+            # )
         })
 
         # setting "velocity" in x and y direction independently
@@ -83,10 +92,25 @@ class World2D(gym.Env):
             low=-1, high=1, shape=(2,), dtype=np.float32
         )
 
+    # NOTE: AutoEncoder
     def _get_observations(self):
-        obstacles = self.static_obstacles + self.dynamic_obstacles
-        pointcloud = np.array([o.position for o in obstacles])
-        bps_distances = self.bps.encode(pointcloud)
+        if self.pointcloud is None:
+            rm = self.render_mode
+            self.render_mode = "rgb_array"
+            self.pointcloud = self._render_frame()
+            self.render_mode = rm
+
+        image = self.pointcloud[2::4, 2::4, :].transpose([2, 0, 1])
+        image = self.transform(torch.from_numpy(np.expand_dims(image, 0)))
+        state = self.model.encoder.forward(image.to(self.model.device))
+
+        # TODO: debugging
+        # reconstruction = self.model.decoder.forward(state)
+        # reconstruction = reconstruction.cpu().detach().numpy()[0]
+        # reconstruction = reconstruction.transpose([2, 1, 0])
+        # self.plot = plt.imshow(reconstruction)
+        # plt.show()
+
         agent: np.ndarray = np.concatenate([
             self.agent.position,
             self.agent.speed
@@ -95,8 +119,24 @@ class World2D(gym.Env):
         return {
             "agent": agent.astype(np.float32),
             "target": self.target.position.astype(np.float32),
-            "state": bps_distances.astype(np.float32)
+            "state": state.cpu().detach().numpy()[0]
         }
+
+    # NOTE: BPS
+    # def _get_observations(self):
+    #     obstacles = self.static_obstacles + self.dynamic_obstacles
+    #     pointcloud = np.array([o.position for o in obstacles])
+    #     bps_distances = self.bps.encode(pointcloud)
+    #     agent: np.ndarray = np.concatenate([
+    #         self.agent.position,
+    #         self.agent.speed
+    #     ])
+
+    #     return {
+    #         "agent": agent.astype(np.float32),
+    #         "target": self.target.position.astype(np.float32),
+    #         "state": bps_distances.astype(np.float32)
+    #     }
 
     def _get_infos(self):
         obstacles = self.static_obstacles + self.dynamic_obstacles
@@ -143,7 +183,8 @@ class World2D(gym.Env):
                 self.static_obstacles.append(obstacle)
             # reset dynamic obstacles
             for dynamic in world.get("dynamic"):
-                speed = self.np_random.uniform(min_speed, max_speed, size=2)
+                speed = self.np_random.uniform(min_speed, max_speed, size=3)
+                speed = (speed[:2] / np.linalg.norm(speed[:2], ord=2)) * speed[2]
                 obstacle = DynamicObstacle(dynamic_size, speed)
                 obstacle.position = np.array(dynamic[:2])
                 self.dynamic_obstacles.append(obstacle)
@@ -162,24 +203,15 @@ class World2D(gym.Env):
 
             # reset dynamic obstacles
             for _ in range(self.options["num_dynamic_obstacles"]):
-                speed = self.np_random.uniform(min_speed, max_speed, size=2)
+                speed = self.np_random.uniform(min_speed, max_speed, size=3)
+                speed = (speed[:2] / np.linalg.norm(speed[:2], ord=2)) * speed[2]
                 obstacle = DynamicObstacle(dynamic_size, speed)
                 obstacle.reset(entities, self.np_random)
                 self.dynamic_obstacles.append(obstacle)
 
-        # NOTE: this is supposed to let the screen flicker in green or red
-        #       depending on the agent winning or crashing in the last episode
-        #       Hint: it is not working...
-        # if self.win or self.collision:
-        #     overlay = pg.Surface(self.window.get_size())
-        #     overlay.set_alpha(128)
-        #     overlay.fill(GREEN if self.win else RED)
-        #     self.window.blit(overlay, (0, 0))
-
         self.timestep = 0
         self.win = False
         self.collision = False
-
         return self._get_observations(), self._get_infos()
 
     def step(self, action: np.ndarray):
@@ -286,6 +318,9 @@ class World2D(gym.Env):
 
             # draw image at given framerate
             self.clock.tick(self.metadata["render_fps"])
+
+            # NOTE: AutoEncoder
+            self.pointcloud = image
         else:  # rgb_array
             return image
 

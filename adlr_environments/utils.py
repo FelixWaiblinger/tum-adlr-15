@@ -1,11 +1,13 @@
 """Utility functions"""
 
 from typing import Callable, Dict
+from argparse import ArgumentParser
 
 import pygame
 import numpy as np
 import gymnasium as gym
 import matplotlib.pyplot as plt
+from tqdm.auto import tqdm
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
@@ -157,3 +159,17 @@ def to_py_dict(dictionary: dict):
         else:
             result[k] = float(v)
     return result
+
+
+def arg_parse(arguments: list):
+    """Parse commandline arguments"""
+    parser = ArgumentParser()
+    for flags, arg_type, dft in arguments:
+        parser.add_argument(*flags, type=arg_type, default=dft)
+    args = parser.parse_args()
+    return args
+
+
+def create_tqdm_bar(iterable, desc):
+    """Create a progress bar"""
+    return tqdm(enumerate(iterable),total=len(iterable), ncols=150, desc=desc)

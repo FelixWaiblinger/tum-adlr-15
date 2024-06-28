@@ -1,7 +1,6 @@
 """Player-controlled simulation"""
 
 import time
-from argparse import ArgumentParser
 
 import numpy as np
 import gymnasium as gym
@@ -12,11 +11,17 @@ import adlr_environments # pylint: disable=unused-import
 from adlr_environments import LEVEL1, LEVEL2, LEVEL3
 from adlr_environments.constants import Input, MAX_PLAYMODE_STEPS
 from adlr_environments.wrapper import PlayWrapper, RewardWrapper
+from adlr_environments.utils import arg_parse
+
 
 AGENT = "./agents/sac_sparse"
 INPUTS = ["mouse", "keyboard", "controller", "agent"]
 LEVELS = [None, LEVEL1, LEVEL2, LEVEL3]
 NUM_GAMES = 5
+ARGUMENTS = [
+    (("-l", "--level"), int, 0),
+    (("-i", "--input"), str, "mouse")
+]
 OPTIONS = {
     "episode_length": MAX_PLAYMODE_STEPS,
     "step_length": 0.1,
@@ -28,19 +33,6 @@ OPTIONS = {
     "max_speed": 0.05,
     "bps_size": 50,
 }
-
-
-def parse_arguments():
-    """Parse commandline arguments"""
-    parser = ArgumentParser()
-    parser.add_argument("-l", "--level", type=int, default=0)
-    parser.add_argument("-i", "--input", default="mouse")
-    args = parser.parse_args()
-
-    assert 0 <= args.level < len(LEVELS), f"Unrecognized level {args.level}"
-    assert args.input in INPUTS, f"Unrecognized input method {args.input}"
-
-    return LEVELS[args.level], INPUTS.index(args.input)
 
 
 def create_env(level: dict, control: Input):
@@ -83,7 +75,12 @@ def print_game_end(w: int, rs: list):
 
 if __name__ == "__main__":
     # parse arguments from cli
-    chosen_level, chosen_input = parse_arguments()
+    args = arg_parse(ARGUMENTS)
+    assert 0 <= args.level < len(LEVELS), f"Unrecognized level {args.level}"
+    assert args.input in INPUTS, f"Unrecognized input method {args.input}"
+
+    chosen_level = LEVELS[args.level]
+    chosen_input = INPUTS.index(args.input)
 
     # create environment
     env = create_env(chosen_level, Input(chosen_input))

@@ -8,14 +8,19 @@ from stable_baselines3 import SAC
 from gymnasium.wrappers import FlattenObservation, FrameStack
 
 from adlr_environments.wrapper import RewardWrapper
-from adlr_environments.utils import create_env, linear
+from adlr_environments.utils import arg_parse, create_env, linear
 
 
-LOG_PATH = "./logs/"
+ARGUMENTS = [
+    (("-s", "--start"), int, None),
+    (("-r", "--resume"), int, None),
+    (("-e", "--eval"), int, None),
+    (("-n", "--name"), str, None),
+]
+AGENT = SAC # PPO
+AGENT_NAME = "sac_ae_100"
 AGENT_PATH = "./agents/"
-
-AGENT_TYPE = SAC # PPO
-AGENT = "sac_stacked"
+LOG_PATH = "./logs/"
 
 WRAPPER = [
     (FlattenObservation, {}),
@@ -30,14 +35,20 @@ ENV_OPTIONS = {
     "size_static": 0.1,
     "num_dynamic_obstacles": 8,
     "size_dynamic": 0.075,
-    "bps_size": 50,
-    # NOTE: additional options I (Felix) use, but may not be necessary
+    "min_speed": -0.05,
+    "max_speed": 0.05,
+    "latent_size": 100,
+}
+# NOTE: additional options I (Felix) use, but may not be necessary
+EXTRA_OPTIONS = {
     "fork": True
 }
 
 
 def start(num_steps: int):
     """Train a new agent from scratch"""
+    ENV_OPTIONS.update(EXTRA_OPTIONS)
+
     env = create_env(
         wrapper=WRAPPER,
         render=False,
@@ -45,24 +56,23 @@ def start(num_steps: int):
         options=ENV_OPTIONS
     )
 
-    model = AGENT_TYPE(
+    model = AGENT(
         "MlpPolicy",
         env,
-        tensorboard_log=LOG_PATH + AGENT,
+        tensorboard_log=LOG_PATH + AGENT_NAME,
         learning_rate=linear(0.001)
     )
 
     model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT_PATH)
+    model.save(AGENT_PATH + AGENT_NAME)
 
 
 def resume(num_steps: int, new_name: str=None):
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
-
-    if not new_name:
-        new_name = AGENT
+    ENV_OPTIONS.update(EXTRA_OPTIONS)
+    new_name = AGENT_NAME if new_name is None else new_name
 
     env = create_env(
         wrapper=WRAPPER,
@@ -71,8 +81,8 @@ def resume(num_steps: int, new_name: str=None):
         options=ENV_OPTIONS
     )
 
-    model = AGENT_TYPE.load(
-        AGENT_PATH + AGENT,
+    model = AGENT.load(
+        AGENT_PATH + AGENT_NAME,
         env,
         tensorboard_log=LOG_PATH + new_name
     )
@@ -81,19 +91,16 @@ def resume(num_steps: int, new_name: str=None):
     model.save(new_name)
 
 
-def evaluate(name: str, num_steps: int=1000):
+def evaluate(num_steps: int=1000):
     """Evaluate a trained agent"""
-    options = ENV_OPTIONS
-    options.pop("fork")
-
     env = create_env(
         wrapper=WRAPPER,
         render=True,
         num_workers=1,
-        options=options
+        options=ENV_OPTIONS
     )
 
-    model = AGENT_TYPE.load(AGENT_PATH + name, env)
+    model = AGENT.load(AGENT_PATH + AGENT_NAME, env)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
@@ -133,8 +140,22 @@ def evaluate(name: str, num_steps: int=1000):
 
 
 if __name__ == '__main__':
-    # start(num_steps=1_000_000)
+    # parse arguments from cli
+    args = arg_parse(ARGUMENTS)
+    assert not all(arg is None for arg in [args.start, args.resume, args.eval])
 
-    # resume(num_steps=1_000_000)
+    # record reset dataset
+    if args.start is not None:
+        assert args.start > 0, \
+            f"Number of training steps ({args.start}) must be positive!"
+        start(args.start)
 
-    evaluate(AGENT)
+    # train an autoencoder on the recorded data
+    elif args.resume is not None:
+        assert args.resume > 0, \
+            f"Number of training steps ({args.resume}) must be positive!"
+        resume(args.resume, args.name)
+
+    # evaluate the performance of the encoder by visual inspection
+    elif args.eval is not None:
+        evaluate(args.eval)
