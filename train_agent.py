@@ -1,14 +1,15 @@
 """Training"""
 
-# import os
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from stable_baselines3 import SAC
 # from stable_baselines3.common.vec_env import VecVideoRecorder
 from gymnasium.wrappers import FlattenObservation, FrameStack
 
-from adlr_environments.wrapper import RewardWrapper
+from adlr_environments.wrapper import RewardWrapper, AEWrapper
 from adlr_environments.utils import arg_parse, create_env, linear
+from state_representation import CombineTransform, NormalizeTransform
 
 
 ARGUMENTS = [
@@ -17,12 +18,21 @@ ARGUMENTS = [
     (("-e", "--eval"), int, None),
     (("-n", "--name"), str, None),
 ]
+
+# learned state representation
+AUTOENCODER = "./state_representation/autoencoder.pt"
+TRANSFORM = CombineTransform([
+    NormalizeTransform(start=(0, 255), end=(0, 1)),
+])
+
+# RL agent
 AGENT = SAC # PPO
 AGENT_NAME = "sac_ae_100"
 AGENT_PATH = "./agents/"
 LOG_PATH = "./logs/"
 
 WRAPPER = [
+    (AEWrapper, {"model_path": AUTOENCODER, "transform": TRANSFORM}),
     (FlattenObservation, {}),
     (FrameStack, {"num_stack": 3}),
     (RewardWrapper, {})

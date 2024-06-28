@@ -6,10 +6,10 @@ from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
+from adlr_environments.constants import DEVICE
 from adlr_environments.utils import arg_parse, create_env, create_tqdm_bar
 from state_representation import AutoEncoder, ImageDataset, CombineTransform, \
-    NormalizeTransform, StandardizeTransform
-from state_representation.datasets import record_resets
+    NormalizeTransform, record_resets
 from train_agent import ENV_OPTIONS, WRAPPER
 
 
@@ -30,11 +30,9 @@ LATENT_SIZE = 100
 # training parameters
 TRANSFORM = CombineTransform([
     NormalizeTransform(start=(0, 255), end=(0, 1)),
-    # StandardizeTransform(dim=(1,2)),
 ])
 BATCH_SIZE = 64
 VAL_RATE = 0.1
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def training(epochs: int):

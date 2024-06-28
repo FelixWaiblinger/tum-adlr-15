@@ -3,23 +3,18 @@
 from typing import Any, List, Dict, Tuple
 import copy
 
-import torch
 import pygame as pg
 import numpy as np
-import matplotlib.pyplot as plt
 import gymnasium as gym
 from gymnasium import spaces
 
 from adlr_environments.utils import eucl
-from adlr_environments.constants import MAX_EPISODE_STEPS, WHITE #, GREEN, RED
-from state_representation import AutoEncoder, BPS, NormalizeTransform
+from adlr_environments.constants import *
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
 
-AUTOENCODER = "./state_representation/autoencoder.pt"
 DEFAULT_OPTIONS = {
     "world": None,
-    "seed": 42,
     "episode_length": MAX_EPISODE_STEPS,
     "step_length": 0.1,
     "size_agent": 0.1,
@@ -43,100 +38,82 @@ class World2D(gym.Env):
 
     def __init__(self,
         render_mode: str=None,
+        observation_type: Observation=Observation.POS,
         options: Dict[str, Any]=None
     ) -> None:
         """Create new environment"""
-
-        # fill missing options with default values
-        opts = DEFAULT_OPTIONS
-        opts.update((options if options else {}))
-        options = opts
-
         # pygame related stuff
         assert render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
-        self.window_size = 512
         self.window = None
         self.clock = None
-        self.options = options
-        self.plot = None
 
-        latent = options["latent_size"]
+        # fill missing options with default values
+        self.options = DEFAULT_OPTIONS
+        self.options.update((options if options else {}))
 
-        # observations
+        n_obstacles = options["num_static_obstacles"] \
+                    + options["num_dynamic_obstacles"]
+
+        # stuff tracked by the environment
         self.win = False
         self.collision = False
-        self.pointcloud = None
         self.timestep = 0
-        self.model: AutoEncoder = torch.load(AUTOENCODER)
-        self.transform = NormalizeTransform(start=(0, 255), end=(0, 1))
+        self.step_length = options["step_length"]
         self.agent = Agent(options["size_agent"])
         self.target = Target(options["size_target"])
         self.static_obstacles: List[StaticObstacle] = []
         self.dynamic_obstacles: List[DynamicObstacle] = []
-        self.bps = BPS(options["seed"], latent)
-        self.step_length = options["step_length"]
-        self.observation_space = spaces.Dict({
-            # NOTE: AutoEncoder
-            "agent": spaces.Box(-1, 1, shape=(4,), dtype=np.float32),
-            "target": spaces.Box(-1, 1, shape=(2,), dtype=np.float32),
-            "state": spaces.Box(-1, 1, shape=(latent,), dtype=np.float32)
-            # NOTE: BPS
-            # "state": spaces.Box(
-            #     low=0, high=2 * np.sqrt(2), shape=(latent,), dtype=np.float32
-            # )
-        })
+        
+        self.observation_type = observation_type
+        # observations include agent, target and obstacle positions (and speed)
+        if observation_type == Observation.POS:
+            space = spaces.Dict({
+                "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
+                "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
+                "state": spaces.Box(-1, 1, shape=(n_obstacles, 2), dtype=DTYPE)
+            })
+        
+        # observations include a top down RGB image as numpy array
+        elif observation_type == Observation.RGB:
+            space = spaces.Dict({
+                "image": spaces.Box(0, 1, shape=(PIXELS, PIXELS), dtype=DTYPE)
+            })
 
-        # setting "velocity" in x and y direction independently
+        # observations include all observations mentioned above
+        else: # Observation.ALL
+            space = spaces.Dict({
+                "image": spaces.Box(0, 1, shape=(PIXELS, PIXELS), dtype=DTYPE),
+                "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
+                "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
+                "state": spaces.Box(-1, 1, shape=(n_obstacles, 2), dtype=DTYPE)
+            })
+        self.observation_space = space
+
+        # actions include setting velocity in x and y direction independently
         self.action_space = spaces.Box(
-            low=-1, high=1, shape=(2,), dtype=np.float32
+            low=-1, high=1, shape=(2,), dtype=DTYPE
         )
 
-    # NOTE: AutoEncoder
     def _get_observations(self):
-        if self.pointcloud is None:
+        obs = {}
+        if self.observation_type != Observation.RGB:
+            # add agent
+            obs["agent"] = np.concatenate([self.agent.position, self.agent.speed])
+            # add target
+            obs["target"] = self.target.position.astype(DTYPE)
+            # add obstacles
+            obstacles = self.static_obstacles + self.dynamic_obstacles
+            obs["state"] = np.array([o.position for o in obstacles])
+
+        if self.observation_type != Observation.POS:
+            # add image
             rm = self.render_mode
             self.render_mode = "rgb_array"
-            self.pointcloud = self._render_frame()
+            obs["image"] = self._render_frame()
             self.render_mode = rm
 
-        image = self.pointcloud[2::4, 2::4, :].transpose([2, 0, 1])
-        image = self.transform(torch.from_numpy(np.expand_dims(image, 0)))
-        state = self.model.encoder.forward(image.to(self.model.device))
-
-        # TODO: debugging
-        # reconstruction = self.model.decoder.forward(state)
-        # reconstruction = reconstruction.cpu().detach().numpy()[0]
-        # reconstruction = reconstruction.transpose([2, 1, 0])
-        # self.plot = plt.imshow(reconstruction)
-        # plt.show()
-
-        agent: np.ndarray = np.concatenate([
-            self.agent.position,
-            self.agent.speed
-        ])
-
-        return {
-            "agent": agent.astype(np.float32),
-            "target": self.target.position.astype(np.float32),
-            "state": state.cpu().detach().numpy()[0]
-        }
-
-    # NOTE: BPS
-    # def _get_observations(self):
-    #     obstacles = self.static_obstacles + self.dynamic_obstacles
-    #     pointcloud = np.array([o.position for o in obstacles])
-    #     bps_distances = self.bps.encode(pointcloud)
-    #     agent: np.ndarray = np.concatenate([
-    #         self.agent.position,
-    #         self.agent.speed
-    #     ])
-
-    #     return {
-    #         "agent": agent.astype(np.float32),
-    #         "target": self.target.position.astype(np.float32),
-    #         "state": bps_distances.astype(np.float32)
-    #     }
+        return obs
 
     def _get_infos(self):
         obstacles = self.static_obstacles + self.dynamic_obstacles
@@ -165,63 +142,74 @@ class World2D(gym.Env):
 
         self.static_obstacles = []
         self.dynamic_obstacles = []
-        static_size = self.options["size_static"]
-        dynamic_size = self.options["size_dynamic"]
-        min_speed = self.options["min_speed"]
-        max_speed = self.options["max_speed"]
 
         # reset the world to a predefined state
         if self.options["world"]:
-            world: Dict = self.options["world"]
-            # reset target and agent
-            self.agent.position = np.array(world.get("agent"))
-            self.target.position = np.array(world.get("target"))
-            # reset static obstacles
-            for static in world.get("static"):
-                obstacle = StaticObstacle(static_size)
-                obstacle.position = np.array(static)
-                self.static_obstacles.append(obstacle)
-            # reset dynamic obstacles
-            for dynamic in world.get("dynamic"):
-                speed = self.np_random.uniform(min_speed, max_speed, size=3)
-                speed = (speed[:2] / np.linalg.norm(speed[:2], ord=2)) * speed[2]
-                obstacle = DynamicObstacle(dynamic_size, speed)
-                obstacle.position = np.array(dynamic[:2])
-                self.dynamic_obstacles.append(obstacle)
+            self._load_world()
 
         # reset the world to a random state
         else:
-            # reset target and agent
-            entities = [self.target]
-            self.agent.reset(entities, self.np_random)
-
-            # reset static obstacles
-            for _ in range(self.options["num_static_obstacles"]):
-                obstacle = StaticObstacle(static_size)
-                obstacle.reset(entities, self.np_random)
-                self.static_obstacles.append(obstacle)
-
-            # reset dynamic obstacles
-            for _ in range(self.options["num_dynamic_obstacles"]):
-                speed = self.np_random.uniform(min_speed, max_speed, size=3)
-                speed = (speed[:2] / np.linalg.norm(speed[:2], ord=2)) * speed[2]
-                obstacle = DynamicObstacle(dynamic_size, speed)
-                obstacle.reset(entities, self.np_random)
-                self.dynamic_obstacles.append(obstacle)
+            self._create_world()
 
         self.timestep = 0
         self.win = False
         self.collision = False
         return self._get_observations(), self._get_infos()
 
+    def _load_world(self):
+        """Load a predefined world"""
+        world: Dict = self.options["world"]
+        # reset target and agent
+        self.agent.position = np.array(world.get("agent"))
+        self.target.position = np.array(world.get("target"))
+        # reset static obstacles
+        for static in world.get("static"):
+            obstacle = StaticObstacle(self.options["size_static"])
+            obstacle.position = np.array(static)
+            self.static_obstacles.append(obstacle)
+        # reset dynamic obstacles
+        for dynamic in world.get("dynamic"):
+            speed = self.np_random.uniform(
+                self.options["min_speed"],
+                self.options["max_speed"],
+                size=3
+            )
+            speed = (speed[:2] / np.linalg.norm(speed[:2], ord=2)) * speed[2]
+            obstacle = DynamicObstacle(self.options["size_dynamic"], speed)
+            obstacle.position = np.array(dynamic[:2])
+            self.dynamic_obstacles.append(obstacle)
+
+    def _create_world(self):
+        """Create a new random world"""
+        # reset target and agent
+        entities = [self.target]
+        self.agent.reset(entities, self.np_random)
+
+        # reset static obstacles
+        for _ in range(self.options["num_static_obstacles"]):
+            obstacle = StaticObstacle(self.options["size_static"])
+            obstacle.reset(entities, self.np_random)
+            self.static_obstacles.append(obstacle)
+
+        # reset dynamic obstacles
+        for _ in range(self.options["num_dynamic_obstacles"]):
+            speed = self.np_random.uniform(
+                self.options["min_speed"],
+                self.options["max_speed"],
+                size=3
+            )
+            speed = (speed[:2] / np.linalg.norm(speed[:2], ord=2)) * speed[2]
+            obstacle = DynamicObstacle(self.options["size_dynamic"], speed)
+            obstacle.reset(entities, self.np_random)
+            self.dynamic_obstacles.append(obstacle)
+
     def step(self, action: np.ndarray):
         """Perform one time step"""
-
         # move agent according to chosen action
-        self.agent.speed = action.astype(np.float32)
+        self.agent.speed = action.astype(DTYPE)
         self.agent.position = np.clip(
             self.agent.position + self.step_length * action,
-            a_min=-1, a_max=1, dtype=np.float32
+            a_min=-1, a_max=1, dtype=DTYPE
         )
 
         # check win condition
@@ -279,14 +267,12 @@ class World2D(gym.Env):
         if self.window is None and self.render_mode == "human":
             pg.init() # pylint: disable=no-member
             pg.display.init()
-            self.window = pg.display.set_mode(
-                (self.window_size, self.window_size)
-            )
+            self.window = pg.display.set_mode((PIXELS, PIXELS))
         if self.clock is None and self.render_mode == "human":
             self.clock = pg.time.Clock()
 
-        canvas = pg.Surface((self.window_size, self.window_size))
-        canvas.fill(WHITE)
+        canvas = pg.Surface((PIXELS, PIXELS))
+        canvas.fill(Color.WHITE.value)
 
         # draw static obstacles
         for obstacle in self.static_obstacles:
@@ -299,16 +285,8 @@ class World2D(gym.Env):
         # draw the target
         self.target.draw(canvas)
 
-        # draw the agent
-        # NOTE: 'draw_direction=False' for dataset generation
-        self.agent.draw(canvas, draw_direction=False)
-
-        # create pointcloud from currently rendered image
-        image = copy.deepcopy(pg.surfarray.pixels3d(canvas))
-
-        # NOTE: if an actual pointcloud becomes necessary later
-        # reduce resolution by taking every fourth pixel
-        # self.pointcloud = img2pc(image[2::4, 2::4, :], self.window_size)
+        # draw the agent NOTE: 'draw_direction=False' for dataset generation
+        self.agent.draw(canvas, draw_direction=True)
 
         if self.render_mode == "human":
             # copy drawings from canvas to the visible window
@@ -319,10 +297,8 @@ class World2D(gym.Env):
             # draw image at given framerate
             self.clock.tick(self.metadata["render_fps"])
 
-            # NOTE: AutoEncoder
-            self.pointcloud = image
-        else:  # rgb_array
-            return image
+        else: # rgb_array
+            return copy.deepcopy(pg.surfarray.pixels3d(canvas))
 
     def close(self):
         if self.window is not None:

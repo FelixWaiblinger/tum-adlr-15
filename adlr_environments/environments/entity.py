@@ -7,14 +7,14 @@ import numpy as np
 from numpy.random import Generator
 
 from adlr_environments.utils import eucl, draw_arrow
-from adlr_environments.constants import RED, GREEN, BLUE, BLACK
+from adlr_environments.constants import Color
 
 
 class Entity(ABC):
     """2D entity"""
 
     position: np.ndarray
-    color: tuple
+    color: Color
     size: float
 
     def reset(self, entities: list, generator: Generator):
@@ -36,7 +36,7 @@ class Entity(ABC):
         """Draw the entity on the canvas"""
         pygame.draw.circle(
             surface=canvas,
-            color=self.color,
+            color=self.color.value,
             center=(self.position + 1) * canvas.get_width() / 2,
             radius=self.size * canvas.get_width() / 2
         )
@@ -49,7 +49,7 @@ class Agent(Entity):
         """Create a new agent"""
         self.position = np.zeros(2, dtype=np.float32)
         self.speed = np.zeros(2, dtype=np.float32)
-        self.color = BLUE
+        self.color = Color.BLUE
         self.size = size
 
     def reset(self, entities: list, generator: Generator):
@@ -68,7 +68,7 @@ class Agent(Entity):
                 canvas,
                 pygame.Vector2(start),
                 pygame.Vector2(end),
-                color=BLACK,
+                color=Color.BLACK.value,
                 body_width=5,
                 head_width=20,
                 head_height=12
@@ -81,7 +81,7 @@ class Target(Entity):
     def __init__(self, size: float=0.1) -> None:
         """Create a new target"""
         self.position = 0.7 * np.ones(2, dtype=np.float32)
-        self.color = RED
+        self.color = Color.RED
         self.size = size
 
 
@@ -91,7 +91,7 @@ class StaticObstacle(Entity):
     def __init__(self, size: float=0.1) -> None:
         """Create a new static obstacle"""
         self.position = np.zeros(2)
-        self.color = BLACK
+        self.color = Color.BLACK
         self.size = size
 
 
@@ -101,7 +101,7 @@ class DynamicObstacle(Entity):
     def __init__(self, size: float=0.1, speed: np.ndarray=np.ones(2)) -> None:
         """Create a new dynamic obstacle"""
         self.position = np.zeros(2)
-        self.color = GREEN
+        self.color = Color.GREEN
         self.size = size
         self.speed = speed
 

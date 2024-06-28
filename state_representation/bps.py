@@ -4,16 +4,16 @@ import numpy as np
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 
-from adlr_environments.constants import BLACK, GREEN
+from adlr_environments.constants import Color
+
+
+BPS_SEED = 42
 
 
 class BPS:
     """Basis Point Set"""
 
-    def __init__(self,
-        seed: int,
-        num_points: int=100,
-    ) -> None:
+    def __init__(self, seed: int=BPS_SEED, num_points: int=100) -> None:
         """Create a set of basis points"""
 
         generator = np.random.default_rng(seed)
@@ -49,8 +49,8 @@ class BPS:
 def img2pc(image: np.ndarray, image_size: int) -> np.ndarray:
     """Convert an image (w, h, 3) of obstacles to a 2D pointcloud (p, 2)"""
 
-    static_pixels = np.where(np.all(image == BLACK, axis=-1))
-    dynamic_pixels = np.where(np.all(image == GREEN, axis=-1))
+    static_pixels = np.where(np.all(image == Color.BLACK.value, axis=-1))
+    dynamic_pixels = np.where(np.all(image == Color.GREEN.value, axis=-1))
 
     static_coordinates = list(zip(static_pixels[0], static_pixels[1]))
     dynamic_coordinates = list(zip(dynamic_pixels[0], dynamic_pixels[1]))

@@ -1,6 +1,8 @@
 """Environment wrappers"""
 
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, OrderedDict
+
+import torch
 import pygame
 from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT # pylint: disable=E0611
 import numpy as np
@@ -8,7 +10,85 @@ import gymnasium as gym
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.constants import MAX_EPISODE_STEPS, Input
+from adlr_environments.constants import *
+from state_representation import BPS, AutoEncoder
+
+
+class BPSWrapper(gym.Wrapper):
+    """Wrapper to transform pointclouds of obstacles to a Basis Point Set"""
+
+    def __init__(self, env: gym.Env, num_points: int):
+        """Create a wrapper that converts a pointcloud of obstacles to a set
+        of basis points
+
+        Args:
+            ``env``: Environment to wrap
+            ``num_points``: Number of basis points to use
+
+        IMPORTANT: This wrapper should be placed before FlattenObservation!
+        """
+        super().__init__(env)
+
+        assert getattr(env, "observation_type") != Observation.RGB
+        self.bps = BPS(num_points=num_points)
+
+    def step(self, action):
+        """Step the environment once"""
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        assert isinstance(obs, OrderedDict), \
+            f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
+        
+        # encode into basis point set
+        obs = self.bps.encode(obs["state"]).astype(DTYPE)
+
+        return obs, reward, terminated, truncated, info
+
+
+class AEWrapper(gym.Wrapper):
+    """Wrapper to transform a RGB image to a learned latent representation"""
+
+    def __init__(self, env: gym.Env, model_path: str, transform=None):
+        """Create a wrapper that converts a RGB image to a learned latent
+        representation
+
+        Args:
+            ``env``: Environment to wrap
+            ``latent_size``: Size of the learned latent space
+
+        IMPORTANT: This wrapper should be placed before FlattenObservation!
+        """
+        super().__init__(env)
+
+        assert getattr(env, "observation_type") != Observation.POS
+        self.ae: AutoEncoder = torch.load(model_path)
+        self.transform = transform
+
+    def step(self, action):
+        """Step the environment once"""
+        obs, reward, terminated, truncated, info = self.env.step(action)
+
+        assert isinstance(obs, OrderedDict), \
+            f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
+
+        # image transformations
+        image = obs["image"][2::4, 2::4, :].transpose([2, 0, 1])
+        image = torch.from_numpy(np.expand_dims(image, 0))
+        if self.transform is not None:
+            image = self.transform(image)
+
+        # encode into latent representation
+        obs: torch.Tensor = self.ae.encoder.forward(image.to(self.ae.device))
+        obs = obs.cpu().detach().numpy()[0]
+
+        # NOTE: only for debugging
+        # reconstruction = self.model.decoder.forward(state)
+        # reconstruction = reconstruction.cpu().detach().numpy()[0]
+        # reconstruction = reconstruction.transpose([2, 1, 0])
+        # self.plot = plt.imshow(reconstruction)
+        # plt.show()
+
+        return obs, reward, terminated, truncated, info
 
 
 class RewardWrapper(gym.Wrapper):
