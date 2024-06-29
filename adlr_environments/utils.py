@@ -1,5 +1,6 @@
 """Utility functions"""
 
+import time
 from typing import Callable, Dict
 from argparse import ArgumentParser
 
@@ -11,7 +12,7 @@ from tqdm.auto import tqdm
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
-from adlr_environments.constants import Observation
+from adlr_environments.constants import Observation, Color, PIXELS
 
 
 def create_env(
@@ -133,6 +134,33 @@ def draw_arrow(
             vert += start
 
         pygame.draw.polygon(surface, color, body_verts)
+
+
+def draw_uncertainty(
+    canvas: pygame.Surface,
+    center: pygame.Vector2,
+    radius: float
+) -> pygame.Surface:
+    """Blur the image except the circular area around the agent (center)"""
+    white = Color.WHITE.value
+    low_res = PIXELS // 32
+
+    # create mask
+    mask = pygame.Surface((PIXELS, PIXELS))
+    mask.fill(Color.WHITE.value)
+    pygame.draw.circle(mask, Color.BLACK.value, center, radius * PIXELS / 2)
+    mask = pygame.mask.from_threshold(mask, white, white)
+
+    # blur image inside mask
+    blurred = canvas.copy()
+    blurred = pygame.transform.smoothscale(blurred, (low_res, low_res))
+    blurred = pygame.transform.smoothscale(blurred, (PIXELS, PIXELS))
+
+    canvas = mask.to_surface(
+        surface=canvas,
+        setsurface=blurred,
+        unsetsurface=canvas
+    )
 
 
 def eucl(x: np.ndarray, y: np.ndarray) -> float:

@@ -26,6 +26,7 @@ DEFAULT_OPTIONS = {
     "min_speed": -0.1,
     "max_speed": 0.1,
     "latent_size": 100,
+    "uncertainty": False
 }
 
 
@@ -52,8 +53,8 @@ class World2D(gym.Env):
         self.options = DEFAULT_OPTIONS
         self.options.update((options if options else {}))
 
-        n_obstacles = self.options["num_static_obstacles"] \
-                    + self.options["num_dynamic_obstacles"]
+        self.n_obstacles = self.options["num_static_obstacles"] \
+                           + self.options["num_dynamic_obstacles"]
 
         # stuff tracked by the environment
         self.win = False
@@ -69,7 +70,7 @@ class World2D(gym.Env):
         pos_space = {
             "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
             "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
-            "state": spaces.Box(-1, 1, shape=(n_obstacles, 2), dtype=DTYPE)
+            "state": spaces.Box(-1, 1, shape=(self.n_obstacles,2), dtype=DTYPE)
         }
         # observations include a top down RGB image as numpy array
         rgb_space = {
@@ -90,15 +91,30 @@ class World2D(gym.Env):
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=DTYPE)
 
     def _get_observations(self):
+        # uncertainty is represented by noise
+        if self.options["uncertainty"]:
+            noise = np.random.normal(0, 0.05, size=(self.n_obstacles + 2, 2))
+        else:
+            noise = np.zeros((self.n_obstacles + 2, 2))
+
         obs = {}
         if self.observation_type != Observation.RGB:
             # add agent
-            obs["agent"] = np.concatenate([self.agent.position, self.agent.speed])
+            agent = self.agent.position
+            obs["agent"] = np.concatenate([agent + noise[0], self.agent.speed])
+
             # add target
-            obs["target"] = self.target.position.astype(DTYPE)
-            # add obstacles
-            obstacles = self.static_obstacles + self.dynamic_obstacles
-            obs["state"] = np.array([o.position for o in obstacles])
+            d = np.linalg.norm(self.target.position - agent, ord=2)
+            target = self.target.position + (noise[1] if d > 0.5 else 0)
+            obs["target"] = target.astype(DTYPE)
+
+            # add obstacles (+ noise if obstacle is too far away)
+            obstacle_list = self.static_obstacles + self.dynamic_obstacles
+            obstacles = []
+            for o, n in zip(obstacle_list, noise[2:]):
+                d = np.linalg.norm(o.position - agent, ord=2)
+                obstacles.append(o.position + (n if d > 0.5 else 0))
+            obs["state"] = np.array(obstacles).astype(DTYPE)
 
         if self.observation_type != Observation.POS:
             # add image
@@ -280,7 +296,11 @@ class World2D(gym.Env):
         self.target.draw(canvas)
 
         # draw the agent NOTE: 'draw_direction=False' for dataset generation
-        self.agent.draw(canvas, draw_direction=True)
+        self.agent.draw(
+            canvas,
+            draw_vision=self.options["uncertainty"],
+            draw_direction=True
+        )
 
         if self.render_mode == "human":
             # copy drawings from canvas to the visible window

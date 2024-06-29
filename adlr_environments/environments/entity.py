@@ -6,8 +6,8 @@ import pygame
 import numpy as np
 from numpy.random import Generator
 
-from adlr_environments.utils import eucl, draw_arrow
-from adlr_environments.constants import Color
+from adlr_environments.utils import eucl, draw_arrow, draw_uncertainty
+from adlr_environments.constants import Color, PIXELS
 
 
 class Entity(ABC):
@@ -45,24 +45,33 @@ class Entity(ABC):
 class Agent(Entity):
     """2D agent"""
 
-    def __init__(self, size: float=0.1) -> None:
+    def __init__(self, size: float=0.1, vision: float=0.5) -> None:
         """Create a new agent"""
         self.position = np.zeros(2, dtype=np.float32)
         self.speed = np.zeros(2, dtype=np.float32)
         self.color = Color.BLUE
         self.size = size
+        self.vision = vision
 
     def reset(self, entities: list, generator: Generator):
         """Reset the entity for the next episode"""
         super().reset(entities, generator)
         self.speed = np.zeros(2, dtype=np.float32)
 
-    def draw(self, canvas: pygame.Surface, draw_direction: bool=True):
+    def draw(self,
+        canvas: pygame.Surface,
+        draw_vision: bool=False,
+        draw_direction: bool=True
+    ):
         """Draw the agent and its direction on the canvas"""
         super().draw(canvas)
         scale = canvas.get_width() / 2
         start = ((self.position + 1) * scale).tolist()
         end = ((self.position + self.speed * 0.3 + 1) * scale).tolist()
+
+        if draw_vision:
+            draw_uncertainty(canvas, pygame.Vector2(start), self.vision)
+
         if draw_direction:
             draw_arrow(
                 canvas,
