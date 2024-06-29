@@ -52,48 +52,42 @@ class World2D(gym.Env):
         self.options = DEFAULT_OPTIONS
         self.options.update((options if options else {}))
 
-        n_obstacles = options["num_static_obstacles"] \
-                    + options["num_dynamic_obstacles"]
+        n_obstacles = self.options["num_static_obstacles"] \
+                    + self.options["num_dynamic_obstacles"]
 
         # stuff tracked by the environment
         self.win = False
         self.collision = False
         self.timestep = 0
-        self.step_length = options["step_length"]
-        self.agent = Agent(options["size_agent"])
-        self.target = Target(options["size_target"])
+        self.step_length = self.options["step_length"]
+        self.agent = Agent(self.options["size_agent"])
+        self.target = Target(self.options["size_target"])
         self.static_obstacles: List[StaticObstacle] = []
         self.dynamic_obstacles: List[DynamicObstacle] = []
         
-        self.observation_type = observation_type
         # observations include agent, target and obstacle positions (and speed)
-        if observation_type == Observation.POS:
-            space = spaces.Dict({
-                "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
-                "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
-                "state": spaces.Box(-1, 1, shape=(n_obstacles, 2), dtype=DTYPE)
-            })
-        
+        pos_space = {
+            "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
+            "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
+            "state": spaces.Box(-1, 1, shape=(n_obstacles, 2), dtype=DTYPE)
+        }
         # observations include a top down RGB image as numpy array
+        rgb_space = {
+            "image": spaces.Box(0, 1, shape=(PIXELS, PIXELS, 3), dtype=DTYPE)
+        }
+        
+        self.observation_type = observation_type
+        if observation_type == Observation.POS:
+            self.observation_space = spaces.Dict(pos_space)
         elif observation_type == Observation.RGB:
-            space = spaces.Dict({
-                "image": spaces.Box(0, 1, shape=(PIXELS, PIXELS), dtype=DTYPE)
-            })
-
-        # observations include all observations mentioned above
+            self.observation_space = spaces.Dict(rgb_space)
         else: # Observation.ALL
-            space = spaces.Dict({
-                "image": spaces.Box(0, 1, shape=(PIXELS, PIXELS), dtype=DTYPE),
-                "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
-                "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
-                "state": spaces.Box(-1, 1, shape=(n_obstacles, 2), dtype=DTYPE)
-            })
-        self.observation_space = space
+            all_space = pos_space
+            all_space.update(rgb_space)
+            self.observation_space = spaces.Dict(all_space)
 
         # actions include setting velocity in x and y direction independently
-        self.action_space = spaces.Box(
-            low=-1, high=1, shape=(2,), dtype=DTYPE
-        )
+        self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=DTYPE)
 
     def _get_observations(self):
         obs = {}

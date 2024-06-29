@@ -29,7 +29,10 @@ class BPSWrapper(gym.Wrapper):
         """
         super().__init__(env)
 
-        assert getattr(env, "observation_type") != Observation.RGB
+        assert hasattr(env, "observation_type"), \
+            f"Wrapper applied to incompatible environment!"
+        
+        setattr(env, "observation_type", Observation.POS)
         self.bps = BPS(num_points=num_points)
 
     def step(self, action):
@@ -60,7 +63,10 @@ class AEWrapper(gym.Wrapper):
         """
         super().__init__(env)
 
-        assert getattr(env, "observation_type") != Observation.POS
+        assert hasattr(env, "observation_type"), \
+            f"Wrapper applied to incompatible environment!"
+
+        setattr(env, "observation_type", Observation.RGB)
         self.ae: AutoEncoder = torch.load(model_path)
         self.transform = transform
 

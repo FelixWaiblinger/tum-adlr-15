@@ -10,8 +10,8 @@ from state_representation.datasets import (
 )
 from state_representation.models import (
     AutoEncoder,
-    EncoderFix,
+    Encoder2,
     EncoderVar,
-    DecoderFix,
+    Decoder2,
     DecoderVar
 )

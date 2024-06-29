@@ -11,10 +11,13 @@ from tqdm.auto import tqdm
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
+from adlr_environments.constants import Observation
+
 
 def create_env(
     wrapper: list=None,
     render: bool=False,
+    obs_type: Observation=Observation.POS,
     num_workers: int=1,
     options: Dict=None
 ):
@@ -27,7 +30,12 @@ def create_env(
     """
 
     def env_factory(render):
-        env = gym.make(id="World2D-v0", render_mode=render, options=options)
+        env = gym.make(
+            id="World2D-v0",
+            render_mode=render,
+            observation_type=obs_type,
+            options=options
+        )
 
         for wrap, kwargs in wrapper:
             env = wrap(env, **kwargs)

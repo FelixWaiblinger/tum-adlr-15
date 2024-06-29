@@ -2,13 +2,14 @@
 
 import gymnasium as gym
 import adlr_environments # pylint: disable=unused-import
+from adlr_environments.constants import Observation
 
 options = {
     "num_static_obstacles": 5,
     "num_dynamic_obstacles": 0,
 }
 
-env = gym.make('World2D-v0', render_mode='human', options=options)
+env = gym.make('World2D-v0', render_mode='human', observation_type=Observation.RGB, options=options)
 
 observation, info = env.reset(seed=42)
 

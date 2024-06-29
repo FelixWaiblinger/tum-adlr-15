@@ -7,7 +7,8 @@ from stable_baselines3 import SAC
 # from stable_baselines3.common.vec_env import VecVideoRecorder
 from gymnasium.wrappers import FlattenObservation, FrameStack
 
-from adlr_environments.wrapper import RewardWrapper, AEWrapper
+from adlr_environments.constants import Observation
+from adlr_environments.wrapper import RewardWrapper, AEWrapper, BPSWrapper
 from adlr_environments.utils import arg_parse, create_env, linear
 from state_representation import CombineTransform, NormalizeTransform
 
@@ -32,6 +33,7 @@ AGENT_PATH = "./agents/"
 LOG_PATH = "./logs/"
 
 WRAPPER = [
+    # (BPSWrapper, {"num_points": 100}),
     (AEWrapper, {"model_path": AUTOENCODER, "transform": TRANSFORM}),
     (FlattenObservation, {}),
     (FrameStack, {"num_stack": 3}),
@@ -47,7 +49,6 @@ ENV_OPTIONS = {
     "size_dynamic": 0.075,
     "min_speed": -0.05,
     "max_speed": 0.05,
-    "latent_size": 100,
 }
 # NOTE: additional options I (Felix) use, but may not be necessary
 EXTRA_OPTIONS = {
@@ -62,6 +63,7 @@ def start(num_steps: int):
     env = create_env(
         wrapper=WRAPPER,
         render=False,
+        obs_type=Observation.RGB,
         num_workers=8,
         options=ENV_OPTIONS
     )
@@ -87,6 +89,7 @@ def resume(num_steps: int, new_name: str=None):
     env = create_env(
         wrapper=WRAPPER,
         render=False,
+        obs_type=Observation.RGB,
         num_workers=8,
         options=ENV_OPTIONS
     )
@@ -106,6 +109,7 @@ def evaluate(num_steps: int=1000):
     env = create_env(
         wrapper=WRAPPER,
         render=True,
+        obs_type=Observation.RGB,
         num_workers=1,
         options=ENV_OPTIONS
     )

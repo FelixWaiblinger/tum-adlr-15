@@ -120,7 +120,7 @@ class DecoderVar(nn.Module):
         return self.net.forward(x)
 
 
-class EncoderFix(nn.Module):
+class Encoder2(nn.Module):
     """Encoder network transforms the input to a latent representation
     
     Hardcoded version (except latent size)
@@ -174,7 +174,7 @@ class EncoderFix(nn.Module):
         return self.net.forward(x)
 
 
-class DecoderFix(nn.Module):
+class Decoder2(nn.Module):
     """Decoder network transforms the latent representation to the format of
     the input
 
@@ -234,8 +234,8 @@ class AutoEncoder(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.encoder = EncoderFix(latent_size=latent_size)
-        self.decoder = DecoderFix(latent_size=latent_size)
+        self.encoder = Encoder2(latent_size=latent_size)
+        self.decoder = Decoder2(latent_size=latent_size)
         # self.encoder = EncoderVar(
         #     num_layers=num_layers,
         #     channels=channels,
