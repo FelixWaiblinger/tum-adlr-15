@@ -154,6 +154,8 @@ class Encoder2(nn.Module):
         # in: 8x8x256
         layers["c31"] = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1)
         # in: 4x4x512
+        layers["c32"] = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1) # NOTE maybe remove this layer again...?
+        # in: 4x4x512
         layers["p3"] = nn.MaxPool2d(2, stride=2)
         # in: 2x2x512
         layers["a3"] = nn.LeakyReLU(negative_slope=0.2)
@@ -277,7 +279,7 @@ class AutoEncoder(nn.Module):
         self.scheduler = optim.lr_scheduler.StepLR(
             self.optimizer,
             step_size=10000, # TODO: replace arbitrary values
-            gamma=0.9 # TODO: replace arbitrary values
+            gamma=0.5 # TODO: replace arbitrary values
         )
 
     def training_step(self, batch: torch.Tensor):

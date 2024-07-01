@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import Dataset
 
 from adlr_environments.utils import create_env
+from adlr_environments.constants import Observation
 
 
 class ImageDataset(Dataset):
@@ -75,8 +76,9 @@ def record_resets(save_dir: str, num_samples: int, options: dict):
     wrapper = options.pop("wrapper")
 
     env = create_env(
-        wrapper=wrapper,
+        wrapper=[],
         render=False,
+        obs_type=Observation.RGB,
         num_workers=1,
         options=options
     )
@@ -86,6 +88,12 @@ def record_resets(save_dir: str, num_samples: int, options: dict):
         print(f"\rGenerating dataset: {(float(i+1)/num_samples) * 100:.2f}%", end="")
         _ = env.reset()
         image = env.render()
+
+        # change number of obstacles for each sample
+        n_static = np.random.choice([0, 1, 2, 3, 4, 5])
+        n_dynamic = np.random.choice([0, 1, 2, 3])
+        setattr(env, "options['num_static_obstacles']", n_static)
+        setattr(env, "options['num_dynamic_obstacles']", n_dynamic)
 
         # NOTE: use 128x128 as resolution instead of 512x512 to save memory
         image = image[2::4, 2::4, :].transpose([2, 0, 1])

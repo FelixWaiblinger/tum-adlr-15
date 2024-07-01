@@ -1,6 +1,5 @@
 """Utility functions"""
 
-import time
 from typing import Callable, Dict
 from argparse import ArgumentParser
 

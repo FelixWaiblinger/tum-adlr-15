@@ -1,12 +1,13 @@
 """Environment wrappers"""
 
-from typing import Tuple, Dict, Any, OrderedDict
+from typing import Tuple, Any, OrderedDict
 
 import torch
 import pygame
 from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT # pylint: disable=E0611
 import numpy as np
 import gymnasium as gym
+from gymnasium.spaces import Dict, Box
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
@@ -29,23 +30,39 @@ class BPSWrapper(gym.Wrapper):
         """
         super().__init__(env)
 
-        assert hasattr(env, "observation_type"), \
-            f"Wrapper applied to incompatible environment!"
-        
-        setattr(env, "observation_type", Observation.POS)
         self.bps = BPS(num_points=num_points)
+        self.observation_space = Dict({
+            "agent": Box(-1, 1, shape=(4,), dtype=DTYPE),
+            "target": Box(-1, 1, shape=(2,), dtype=DTYPE),
+            "state": Box(0, 2*np.sqrt(2), shape=(num_points,), dtype=DTYPE)
+        })
+
+    def reset(self, *,
+        seed: int=None,
+        options: dict=None
+    ) -> Tuple[Any, dict]:
+        """Reset the environment"""
+        obs, info = super().reset(seed=seed, options=options)
+        obs = self._encode(obs)
+
+        return obs, info
 
     def step(self, action):
         """Step the environment once"""
         obs, reward, terminated, truncated, info = self.env.step(action)
-
-        assert isinstance(obs, OrderedDict), \
-            f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
-        
-        # encode into basis point set
-        obs = self.bps.encode(obs["state"]).astype(DTYPE)
+        obs = self._encode(obs)
 
         return obs, reward, terminated, truncated, info
+    
+    def _encode(self, obs):
+        """Encode the image observation as a latent representation"""
+        assert isinstance(obs, OrderedDict), \
+            f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
+
+        # encode into basis point set
+        obs["state"] = self.bps.encode(obs["state"]).astype(DTYPE)
+
+        return obs
 
 
 class AEWrapper(gym.Wrapper):
@@ -63,17 +80,31 @@ class AEWrapper(gym.Wrapper):
         """
         super().__init__(env)
 
-        assert hasattr(env, "observation_type"), \
-            f"Wrapper applied to incompatible environment!"
-
-        setattr(env, "observation_type", Observation.RGB)
-        self.ae: AutoEncoder = torch.load(model_path)
+        self.ae: AutoEncoder = torch.load(model_path, map_location=DEVICE)
         self.transform = transform
+        self.observation_space = gym.spaces.Box(
+            -1, 1, shape=(self.ae.encoder.latent_size,), dtype=DTYPE
+        )
+
+    def reset(self, *,
+        seed: int=None,
+        options: dict=None
+    ) -> Tuple[Any, dict]:
+        """Reset the environment"""
+        obs, info = super().reset(seed=seed, options=options)
+        obs = self._encode(obs)
+
+        return obs, info
 
     def step(self, action):
         """Step the environment once"""
         obs, reward, terminated, truncated, info = self.env.step(action)
+        obs = self._encode(obs)
 
+        return obs, reward, terminated, truncated, info
+    
+    def _encode(self, obs):
+        """Encode the image observation as a latent representation"""
         assert isinstance(obs, OrderedDict), \
             f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
 
@@ -85,7 +116,7 @@ class AEWrapper(gym.Wrapper):
 
         # encode into latent representation
         obs: torch.Tensor = self.ae.encoder.forward(image.to(self.ae.device))
-        obs = obs.cpu().detach().numpy()[0]
+        obs = obs.cpu().detach().numpy()[0].astype(DTYPE)
 
         # NOTE: only for debugging
         # reconstruction = self.model.decoder.forward(state)
@@ -94,7 +125,7 @@ class AEWrapper(gym.Wrapper):
         # self.plot = plt.imshow(reconstruction)
         # plt.show()
 
-        return obs, reward, terminated, truncated, info
+        return obs
 
 
 class RewardWrapper(gym.Wrapper):
@@ -167,8 +198,8 @@ class PlayWrapper(gym.Wrapper):
 
     def reset(self, *,
         seed: int=None,
-        options: Dict[str, Any]=None
-    ) -> Tuple[Any, Dict[str, Any]]:
+        options: dict=None
+    ) -> Tuple[Any, dict]:
         """Reset the environment"""
         obs, info = super().reset(seed=seed, options=options)
         self.player_pos = obs[:2]

@@ -4,13 +4,13 @@ import time
 
 import numpy as np
 import gymnasium as gym
-from gymnasium.wrappers import FlattenObservation
+from gymnasium.wrappers import FlattenObservation, FrameStack
 from stable_baselines3 import SAC
 
 import adlr_environments # pylint: disable=unused-import
 from adlr_environments import LEVEL1, LEVEL2, LEVEL3
 from adlr_environments.constants import Input, MAX_PLAYMODE_STEPS
-from adlr_environments.wrapper import PlayWrapper, RewardWrapper
+from adlr_environments.wrapper import BPSWrapper, PlayWrapper, RewardWrapper
 from adlr_environments.utils import arg_parse
 
 
@@ -31,7 +31,7 @@ OPTIONS = {
     "size_dynamic": 0.075,
     "min_speed": -0.05,
     "max_speed": 0.05,
-    "bps_size": 50,
+    "uncertainty": False
 }
 
 
@@ -39,7 +39,9 @@ def create_env(level: dict, control: Input):
     """Create a specific level environment"""
     OPTIONS.update({"world": level})
     e = gym.make('World2D-Play-v0', render_mode='human', options=OPTIONS)
+    e = BPSWrapper(e, num_points=50)
     e = FlattenObservation(e)
+    # e = FrameStack(e, num_stack=3)
     e = RewardWrapper(e)
     e = PlayWrapper(e, control)
     return e

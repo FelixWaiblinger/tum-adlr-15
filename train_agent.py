@@ -28,27 +28,29 @@ TRANSFORM = CombineTransform([
 
 # RL agent
 AGENT = SAC # PPO
-AGENT_NAME = "sac_ae_100"
+AGENT_NAME = "sac_bps_50_stack3"
 AGENT_PATH = "./agents/"
 LOG_PATH = "./logs/"
 
 WRAPPER = [
-    # (BPSWrapper, {"num_points": 100}),
-    (AEWrapper, {"model_path": AUTOENCODER, "transform": TRANSFORM}),
-    (FlattenObservation, {}),
-    (FrameStack, {"num_stack": 3}),
+    # (BPSWrapper, {"num_points": 50}),
+    # (AEWrapper, {"model_path": AUTOENCODER, "transform": TRANSFORM}),
+    # (FlattenObservation, {}),
+    # (FrameStack, {"num_stack": 3}),
     (RewardWrapper, {})
 ]
+OBSERVATION = Observation.POS
 ENV_OPTIONS = {
     "step_length": 0.1,
     "size_agent": 0.075,
     "size_target": 0.1,
-    "num_static_obstacles": 0,
+    "num_static_obstacles": 5, # 0
     "size_static": 0.1,
-    "num_dynamic_obstacles": 8,
+    "num_dynamic_obstacles": 3, # 8
     "size_dynamic": 0.075,
     "min_speed": -0.05,
     "max_speed": 0.05,
+    # "uncertainty": False
 }
 # NOTE: additional options I (Felix) use, but may not be necessary
 EXTRA_OPTIONS = {
@@ -63,7 +65,7 @@ def start(num_steps: int):
     env = create_env(
         wrapper=WRAPPER,
         render=False,
-        obs_type=Observation.RGB,
+        obs_type=OBSERVATION,
         num_workers=8,
         options=ENV_OPTIONS
     )
@@ -89,7 +91,7 @@ def resume(num_steps: int, new_name: str=None):
     env = create_env(
         wrapper=WRAPPER,
         render=False,
-        obs_type=Observation.RGB,
+        obs_type=OBSERVATION,
         num_workers=8,
         options=ENV_OPTIONS
     )
@@ -109,12 +111,12 @@ def evaluate(num_steps: int=1000):
     env = create_env(
         wrapper=WRAPPER,
         render=True,
-        obs_type=Observation.RGB,
+        obs_type=OBSERVATION,
         num_workers=1,
         options=ENV_OPTIONS
     )
 
-    model = AGENT.load(AGENT_PATH + AGENT_NAME, env)
+    model = AGENT.load(AGENT_PATH + AGENT_NAME)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()

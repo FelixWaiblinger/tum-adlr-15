@@ -1,12 +1,12 @@
 """2D environment"""
 
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Tuple, OrderedDict
 import copy
 
 import pygame as pg
 import numpy as np
 import gymnasium as gym
-from gymnasium import spaces
+from gymnasium.spaces import Dict, Box
 
 from adlr_environments.utils import eucl
 from adlr_environments.constants import *
@@ -40,7 +40,7 @@ class World2D(gym.Env):
     def __init__(self,
         render_mode: str=None,
         observation_type: Observation=Observation.POS,
-        options: Dict[str, Any]=None
+        options: dict=None
     ) -> None:
         """Create new environment"""
         # pygame related stuff
@@ -67,41 +67,44 @@ class World2D(gym.Env):
         self.dynamic_obstacles: List[DynamicObstacle] = []
         
         # observations include agent, target and obstacle positions (and speed)
-        pos_space = {
-            "agent": spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
-            "target": spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
-            "state": spaces.Box(-1, 1, shape=(self.n_obstacles,2), dtype=DTYPE)
-        }
+        pos_space = Dict({
+            "agent": Box(-1, 1, shape=(4,), dtype=DTYPE),
+            "target": Box(-1, 1, shape=(2,), dtype=DTYPE),
+            "state": Box(-1, 1, shape=(self.n_obstacles,2), dtype=DTYPE)
+        })
         # observations include a top down RGB image as numpy array
-        rgb_space = {
-            "image": spaces.Box(0, 1, shape=(PIXELS, PIXELS, 3), dtype=DTYPE)
-        }
+        rgb_space = Dict({
+            "image": Box(0, 255, shape=(PIXELS, PIXELS, 3), dtype=np.uint8)
+        })
         
         self.observation_type = observation_type
         if observation_type == Observation.POS:
-            self.observation_space = spaces.Dict(pos_space)
+            self.observation_space = pos_space
         elif observation_type == Observation.RGB:
-            self.observation_space = spaces.Dict(rgb_space)
+            self.observation_space = rgb_space
         else: # Observation.ALL
             all_space = pos_space
-            all_space.update(rgb_space)
-            self.observation_space = spaces.Dict(all_space)
+            all_space.spaces.update(rgb_space)
+            self.observation_space = all_space
 
         # actions include setting velocity in x and y direction independently
-        self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=DTYPE)
+        self.action_space = Box(low=-1, high=1, shape=(2,), dtype=DTYPE)
 
     def _get_observations(self):
         # uncertainty is represented by noise
         if self.options["uncertainty"]:
-            noise = np.random.normal(0, 0.05, size=(self.n_obstacles + 2, 2))
+            noise = np.random.normal(0, 0.1, size=(self.n_obstacles + 2, 2))
         else:
             noise = np.zeros((self.n_obstacles + 2, 2))
 
-        obs = {}
+        obs = OrderedDict()
         if self.observation_type != Observation.RGB:
             # add agent
             agent = self.agent.position
-            obs["agent"] = np.concatenate([agent + noise[0], self.agent.speed])
+            obs["agent"] = np.concatenate([
+                agent + noise[0],
+                self.agent.speed
+            ]).astype(DTYPE)
 
             # add target
             d = np.linalg.norm(self.target.position - agent, ord=2)
@@ -120,7 +123,7 @@ class World2D(gym.Env):
             # add image
             rm = self.render_mode
             self.render_mode = "rgb_array"
-            obs["image"] = self._render_frame()
+            obs["image"] = self._render_frame().astype(DTYPE)
             self.render_mode = rm
 
         return obs
@@ -144,8 +147,8 @@ class World2D(gym.Env):
 
     def reset(self, *,
         seed: int=None,
-        options: Dict[str, Any] = None
-    ) -> Tuple[Any, Dict[str, Any]]:
+        options: dict = None
+    ) -> Tuple[Any, dict]:
         """Reset environment between episodes"""
         super().reset(seed=seed)
         self.options.update((options if options else {}))
@@ -168,7 +171,7 @@ class World2D(gym.Env):
 
     def _load_world(self):
         """Load a predefined world"""
-        world: Dict = self.options["world"]
+        world: dict = self.options["world"]
         # reset target and agent
         self.agent.position = np.array(world.get("agent"))
         self.target.position = np.array(world.get("target"))

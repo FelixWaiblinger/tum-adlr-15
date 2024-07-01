@@ -18,8 +18,8 @@ ARGUMENTS = [
     (("-t", "--train"), int, None),
     (("-e", "--eval"), str, None)
 ]
-DATA_PATH = "./state_representation/reset_image_data"
-MODEL_PATH = "./state_representation/autoencoder"
+DATA_PATH = "./state_representation/reset_image_data_random"
+MODEL_PATH = "./state_representation/autoencoder_random"
 
 # model parameters
 N_LAYERS = 3
@@ -59,7 +59,6 @@ def training(epochs: int):
         channels=CHANNELS,
         kernels=KERNELS,
         latent_size=LATENT_SIZE,
-        device=DEVICE
     )
 
     val_loss = 0
