@@ -22,9 +22,9 @@ AGENT = AGENT_PATH + "sac_bps_50_play"
 NUM_GAMES = 5
 CONFIG = BPS_CONFIG # AE_CONFIG
 CONFIG.env.update({
+    "env": "World2D-Play-v0",
     "episode_length": MAX_PLAYMODE_STEPS,
-    "world": LEVEL3,
-    "uncertainty": True
+    # "uncertainty": True
 })
 
 if __name__ == "__main__":
@@ -63,7 +63,7 @@ if __name__ == "__main__":
             if model is not None:
                 action, _ = model.predict(observation, deterministic=True)
 
-            observation, reward, done, info = env.step([action])
+            observation, reward, done, info = env.step(action)
             ep_rewards[-1] += reward[0]
             env.render()
 

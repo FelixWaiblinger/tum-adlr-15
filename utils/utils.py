@@ -29,9 +29,9 @@ def create_env(
         ``options``: dict of environment options
     """
 
-    def env_factory(render):
+    def env_factory(id, render):
         env = gym.make(
-            id="World2D-v0",
+            id=id,
             render_mode=render,
             observation_type=obs_type,
             options=options
@@ -43,12 +43,16 @@ def create_env(
         return env
 
     fork = options.pop("fork", False)
+    env_name = options.pop("env", None)
 
     # single/multi threading
     env = make_vec_env(
         env_factory,
         n_envs=num_workers,
-        env_kwargs={"render": ("human" if render else "rgb_array")},
+        env_kwargs={
+            "id": ("World2D-v0" if env_name is None else env_name),
+            "render": ("human" if render else "rgb_array"),
+        },
         vec_env_cls=DummyVecEnv if num_workers == 1 else SubprocVecEnv,
         vec_env_kwargs={"start_method": "fork"} if fork else {}
     )

@@ -32,7 +32,7 @@ def print_game_end(w: int, rs: list, ng: int):
     print("\n=== GAME OVER ===")
     print(f"Episode Rewards: {[round(r, 3) for r in rs]}")
     print(f"Average Reward: {np.mean(rs):.3f}")
-    print(f"Success Rate: {w}/{ng} = {float(w) / ng}")
+    print(f"Success Rate: {w}/{ng} = {(float(w) / ng) * 100:.1f}%")
 
 
 __all__ = [
