@@ -6,7 +6,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from stable_baselines3 import SAC
 
-from adlr_environments import LEVEL3
+import adlr_environments
 from utils import arg_parse, create_env, linear
 from utils.config import BPS_CONFIG, AE_CONFIG, LOG_PATH, AGENT_PATH
 
@@ -25,7 +25,7 @@ AGENT = AGENT_PATH + "sac_bps_50"
 CONFIG = BPS_CONFIG # AE_CONFIG
 CONFIG.env.update({
     # "fork": True,
-    # "world": LEVEL3
+    # "world": adlr_environments.LEVEL3
     "uncertainty": True
 })
 

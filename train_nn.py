@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
+import adlr_environments
 from utils import arg_parse, create_env, create_tqdm_bar
 from utils.constants import DEVICE
 from state_representation import AutoEncoder, ImageDataset, record_resets

@@ -2,6 +2,7 @@
 
 from stable_baselines3 import SAC
 
+import adlr_environments
 from adlr_environments import LEVEL1, LEVEL2, LEVEL3
 from adlr_environments.wrapper import PlayWrapper
 from utils import arg_parse, create_env
