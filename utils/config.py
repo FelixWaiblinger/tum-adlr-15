@@ -1,3 +1,5 @@
+"""Configuration classes"""
+
 from gymnasium.wrappers import FlattenObservation
 
 from utils.constants import Observation

@@ -1,6 +1,6 @@
 """Environment wrappers"""
 
-from typing import Tuple, Any, OrderedDict
+from typing import Tuple, Any
 
 import torch
 import pygame

@@ -10,11 +10,14 @@ readme = "README.md"
 requires-python = ">= 3.7"
 dependencies = [
  "numpy",
+ "matplotlib",
  "pygame",
  "gymnasium",
  "stable-baselines3",
  "scipy",
  "torch",
+ "scikit-learn",
+ "tqdm",
  "adlr_environments"
 ]
 authors = [
