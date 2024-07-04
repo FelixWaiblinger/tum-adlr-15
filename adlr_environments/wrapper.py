@@ -11,7 +11,7 @@ from gymnasium.spaces import Dict, Box
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from adlr_environments.constants import *
+from utils.constants import *
 from state_representation import BPS, AutoEncoder
 
 
@@ -56,7 +56,7 @@ class BPSWrapper(gym.Wrapper):
     
     def _encode(self, obs):
         """Encode the image observation as a latent representation"""
-        assert isinstance(obs, OrderedDict), \
+        assert isinstance(obs, dict), \
             f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
 
         # encode into basis point set
@@ -80,11 +80,13 @@ class AEWrapper(gym.Wrapper):
         """
         super().__init__(env)
 
-        self.ae: AutoEncoder = torch.load(model_path, map_location=DEVICE)
+        self.ae: AutoEncoder = torch.load(model_path)#, map_location=DEVICE)
         self.transform = transform
-        self.observation_space = gym.spaces.Box(
-            -1, 1, shape=(self.ae.encoder.latent_size,), dtype=DTYPE
-        )
+        self.observation_space = gym.spaces.Dict({
+            "agent": gym.spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
+            "target": gym.spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
+            "state": gym.spaces.Box(-1, 1, shape=(self.ae.encoder.latent_size,), dtype=DTYPE)
+        })
 
     def reset(self, *,
         seed: int=None,
@@ -92,6 +94,7 @@ class AEWrapper(gym.Wrapper):
     ) -> Tuple[Any, dict]:
         """Reset the environment"""
         obs, info = super().reset(seed=seed, options=options)
+
         obs = self._encode(obs)
 
         return obs, info
@@ -99,24 +102,27 @@ class AEWrapper(gym.Wrapper):
     def step(self, action):
         """Step the environment once"""
         obs, reward, terminated, truncated, info = self.env.step(action)
+
         obs = self._encode(obs)
 
         return obs, reward, terminated, truncated, info
     
     def _encode(self, obs):
         """Encode the image observation as a latent representation"""
-        assert isinstance(obs, OrderedDict), \
+        assert isinstance(obs, dict), \
             f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
 
         # image transformations
-        image = obs["image"][2::4, 2::4, :].transpose([2, 0, 1])
+        image = obs.pop("image")
+        image = image[2::4, 2::4, :].transpose([2, 0, 1])
         image = torch.from_numpy(np.expand_dims(image, 0))
         if self.transform is not None:
             image = self.transform(image)
 
         # encode into latent representation
-        obs: torch.Tensor = self.ae.encoder.forward(image.to(self.ae.device))
-        obs = obs.cpu().detach().numpy()[0].astype(DTYPE)
+        state: torch.Tensor = self.ae.encoder.forward(image.to(self.ae.device))
+        state = state.cpu().detach().numpy()[0].astype(DTYPE)
+        obs["state"] = state
 
         # NOTE: only for debugging
         # reconstruction = self.model.decoder.forward(state)

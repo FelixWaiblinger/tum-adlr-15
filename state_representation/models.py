@@ -6,7 +6,7 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 
-from adlr_environments.constants import DEVICE
+from utils.constants import DEVICE
 
 
 class EncoderVar(nn.Module):
@@ -154,7 +154,7 @@ class Encoder2(nn.Module):
         # in: 8x8x256
         layers["c31"] = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1)
         # in: 4x4x512
-        layers["c32"] = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1) # NOTE maybe remove this layer again...?
+        # layers["c32"] = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1) # NOTE maybe remove this layer again...?
         # in: 4x4x512
         layers["p3"] = nn.MaxPool2d(2, stride=2)
         # in: 2x2x512

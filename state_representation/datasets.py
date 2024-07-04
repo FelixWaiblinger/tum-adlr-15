@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from adlr_environments.utils import create_env
-from adlr_environments.constants import Observation
+from utils import create_env
+from utils.constants import Observation
 
 
 class ImageDataset(Dataset):
@@ -73,8 +73,6 @@ class StandardizeTransform:
 
 def record_resets(save_dir: str, num_samples: int, options: dict):
     """Record image samples of the environment"""
-    wrapper = options.pop("wrapper")
-
     env = create_env(
         wrapper=[],
         render=False,

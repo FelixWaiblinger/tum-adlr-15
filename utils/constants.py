@@ -36,6 +36,7 @@ class Input(Enum):
     CONTROLLER=2
     AGENT=3
 
+
 __all__ = [
     "MAX_EPISODE_STEPS",
     "MAX_PLAYMODE_STEPS",

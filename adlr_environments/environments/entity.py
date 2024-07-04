@@ -6,8 +6,8 @@ import pygame
 import numpy as np
 from numpy.random import Generator
 
-from adlr_environments.utils import eucl, draw_arrow, draw_uncertainty
-from adlr_environments.constants import Color, PIXELS
+from utils import eucl, draw_arrow, draw_uncertainty
+from utils.constants import Color, PIXELS
 
 
 class Entity(ABC):

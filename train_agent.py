@@ -1,16 +1,14 @@
 """Training"""
 
+import time
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from stable_baselines3 import SAC
-# from stable_baselines3.common.vec_env import VecVideoRecorder
-from gymnasium.wrappers import FlattenObservation, FrameStack
 
-from adlr_environments.constants import Observation
-from adlr_environments.wrapper import RewardWrapper, AEWrapper, BPSWrapper
-from adlr_environments.utils import arg_parse, create_env, linear
-from state_representation import CombineTransform, NormalizeTransform
+from adlr_environments import LEVEL3
+from utils import arg_parse, create_env, linear
+from utils.config import BPS_CONFIG, AE_CONFIG, LOG_PATH, AGENT_PATH
 
 
 ARGUMENTS = [
@@ -20,87 +18,54 @@ ARGUMENTS = [
     (("-n", "--name"), str, None),
 ]
 
-# learned state representation
-AUTOENCODER = "./state_representation/autoencoder.pt"
-TRANSFORM = CombineTransform([
-    NormalizeTransform(start=(0, 255), end=(0, 1)),
-])
-
 # RL agent
-AGENT = SAC # PPO
-AGENT_NAME = "sac_bps_50_stack3"
-AGENT_PATH = "./agents/"
-LOG_PATH = "./logs/"
+AGENT_TYPE = SAC
+AGENT = AGENT_PATH + "sac_bps_50"
 
-WRAPPER = [
-    # (BPSWrapper, {"num_points": 50}),
-    # (AEWrapper, {"model_path": AUTOENCODER, "transform": TRANSFORM}),
-    # (FlattenObservation, {}),
-    # (FrameStack, {"num_stack": 3}),
-    (RewardWrapper, {})
-]
-OBSERVATION = Observation.POS
-ENV_OPTIONS = {
-    "step_length": 0.1,
-    "size_agent": 0.075,
-    "size_target": 0.1,
-    "num_static_obstacles": 5, # 0
-    "size_static": 0.1,
-    "num_dynamic_obstacles": 3, # 8
-    "size_dynamic": 0.075,
-    "min_speed": -0.05,
-    "max_speed": 0.05,
-    # "uncertainty": False
-}
-# NOTE: additional options I (Felix) use, but may not be necessary
-EXTRA_OPTIONS = {
-    "fork": True
-}
+CONFIG = BPS_CONFIG # AE_CONFIG
+CONFIG.env.update({
+    # "fork": True,
+    # "world": LEVEL3
+    "uncertainty": True
+})
 
 
 def start(num_steps: int):
     """Train a new agent from scratch"""
-    ENV_OPTIONS.update(EXTRA_OPTIONS)
-
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=CONFIG.wrapper,
         render=False,
-        obs_type=OBSERVATION,
+        obs_type=CONFIG.observation,
         num_workers=8,
-        options=ENV_OPTIONS
+        options=CONFIG.env
     )
 
-    model = AGENT(
+    model = AGENT_TYPE(
         "MlpPolicy",
         env,
-        tensorboard_log=LOG_PATH + AGENT_NAME,
+        tensorboard_log=LOG_PATH + AGENT,
         learning_rate=linear(0.001)
     )
 
     model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT_PATH + AGENT_NAME)
+    model.save(AGENT)
 
 
 def resume(num_steps: int, new_name: str=None):
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
-    ENV_OPTIONS.update(EXTRA_OPTIONS)
-    new_name = AGENT_NAME if new_name is None else new_name
+    new_name = AGENT if new_name is None else new_name
 
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=CONFIG.wrapper,
         render=False,
-        obs_type=OBSERVATION,
+        obs_type=CONFIG.observation,
         num_workers=8,
-        options=ENV_OPTIONS
+        options=CONFIG.env
     )
 
-    model = AGENT.load(
-        AGENT_PATH + AGENT_NAME,
-        env,
-        tensorboard_log=LOG_PATH + new_name
-    )
+    model = AGENT_TYPE.load(AGENT, env, tensorboard_log=LOG_PATH + new_name)
 
     model.learn(total_timesteps=num_steps, progress_bar=True)
     model.save(new_name)
@@ -109,14 +74,14 @@ def resume(num_steps: int, new_name: str=None):
 def evaluate(num_steps: int=1000):
     """Evaluate a trained agent"""
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=CONFIG.wrapper,
         render=True,
-        obs_type=OBSERVATION,
+        obs_type=CONFIG.observation,
         num_workers=1,
-        options=ENV_OPTIONS
+        options=CONFIG.env
     )
 
-    model = AGENT.load(AGENT_PATH + AGENT_NAME)
+    model = AGENT_TYPE.load(AGENT)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()

@@ -4,7 +4,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 
-from adlr_environments.constants import Color
+from utils.constants import Color
 
 
 BPS_SEED = 42

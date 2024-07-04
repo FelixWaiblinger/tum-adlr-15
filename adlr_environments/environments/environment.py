@@ -8,8 +8,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Dict, Box
 
-from adlr_environments.utils import eucl
-from adlr_environments.constants import *
+from utils import eucl
+from utils.constants import *
 from .entity import Agent, Target, StaticObstacle, DynamicObstacle
 
 
@@ -67,25 +67,23 @@ class World2D(gym.Env):
         self.dynamic_obstacles: List[DynamicObstacle] = []
         
         # observations include agent, target and obstacle positions (and speed)
-        pos_space = Dict({
-            "agent": Box(-1, 1, shape=(4,), dtype=DTYPE),
-            "target": Box(-1, 1, shape=(2,), dtype=DTYPE),
-            "state": Box(-1, 1, shape=(self.n_obstacles,2), dtype=DTYPE)
-        })
+        pos_space = OrderedDict(
+            agent=Box(-1, 1, shape=(4,), dtype=DTYPE),
+            target=Box(-1, 1, shape=(2,), dtype=DTYPE),
+            state=Box(-1, 1, shape=(self.n_obstacles,2), dtype=DTYPE)
+        )
         # observations include a top down RGB image as numpy array
-        rgb_space = Dict({
-            "image": Box(0, 255, shape=(PIXELS, PIXELS, 3), dtype=np.uint8)
-        })
+        rgb_space = OrderedDict(
+            image=Box(0, 255, shape=(PIXELS, PIXELS, 3), dtype=np.uint8)
+        )
         
         self.observation_type = observation_type
-        if observation_type == Observation.POS:
-            self.observation_space = pos_space
-        elif observation_type == Observation.RGB:
-            self.observation_space = rgb_space
-        else: # Observation.ALL
-            all_space = pos_space
-            all_space.spaces.update(rgb_space)
-            self.observation_space = all_space
+        space = OrderedDict()
+        if observation_type != Observation.POS:
+            space.update(rgb_space)
+        if observation_type != Observation.RGB:
+            space.update(pos_space)
+        self.observation_space = Dict(space)
 
         # actions include setting velocity in x and y direction independently
         self.action_space = Box(low=-1, high=1, shape=(2,), dtype=DTYPE)
@@ -97,7 +95,7 @@ class World2D(gym.Env):
         else:
             noise = np.zeros((self.n_obstacles + 2, 2))
 
-        obs = OrderedDict()
+        obs = {}#OrderedDict()
         if self.observation_type != Observation.RGB:
             # add agent
             agent = self.agent.position
@@ -302,7 +300,7 @@ class World2D(gym.Env):
         self.agent.draw(
             canvas,
             draw_vision=self.options["uncertainty"],
-            draw_direction=True
+            draw_direction=False
         )
 
         if self.render_mode == "human":

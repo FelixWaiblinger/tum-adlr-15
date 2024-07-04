@@ -6,31 +6,27 @@ from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-from adlr_environments.constants import DEVICE
-from adlr_environments.utils import arg_parse, create_env, create_tqdm_bar
-from state_representation import AutoEncoder, ImageDataset, CombineTransform, \
-    NormalizeTransform, record_resets
-from train_agent import ENV_OPTIONS, WRAPPER
+from utils import arg_parse, create_env, create_tqdm_bar
+from utils.constants import DEVICE
+from state_representation import AutoEncoder, ImageDataset, record_resets
+from utils.config import AE_CONFIG, TRANSFORM
 
 
+DATA_PATH = "./state_representation/reset_image_data_random_obs"
+MODEL_PATH = "./state_representation/autoencoder_random_obs_100.pt"
 ARGUMENTS = [
     (("-r", "--record"), int, None),
     (("-t", "--train"), int, None),
     (("-e", "--eval"), str, None)
 ]
-DATA_PATH = "./state_representation/reset_image_data_random"
-MODEL_PATH = "./state_representation/autoencoder_random"
 
 # model parameters
 N_LAYERS = 3
 CHANNELS = [3, 64, 128, 256]
 KERNELS = [5, 3, 3]
-LATENT_SIZE = 100
+LATENT_SIZE = 50
 
 # training parameters
-TRANSFORM = CombineTransform([
-    NormalizeTransform(start=(0, 255), end=(0, 1)),
-])
 BATCH_SIZE = 64
 VAL_RATE = 0.1
 
@@ -97,18 +93,19 @@ def training(epochs: int):
 
         val_loss /= len(val_loader)
 
-    torch.save(model, MODEL_PATH + ".pt")
+    torch.save(model, MODEL_PATH)
 
 
 def evaluate(show: str):
     """Show reconstruction of unseen sample"""
-    model: AutoEncoder = torch.load(MODEL_PATH + ".pt").to(DEVICE)
+    model: AutoEncoder = torch.load(MODEL_PATH).to(DEVICE)
 
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=AE_CONFIG.wrapper,
         render=False,
+        obs_type=AE_CONFIG.observation,
         num_workers=1,
-        options=ENV_OPTIONS
+        options=AE_CONFIG.env
     )
 
     _ = env.reset()
@@ -143,8 +140,7 @@ if __name__ == "__main__":
     if args.record is not None:
         assert args.record > 0, \
             f"Number of samples ({args.record}) to record must be positive!"
-        ENV_OPTIONS["wrapper"] = WRAPPER
-        record_resets(DATA_PATH, args.record, ENV_OPTIONS)
+        record_resets(DATA_PATH, args.record, AE_CONFIG.env)
 
     # train an autoencoder on the recorded data
     elif args.train is not None:

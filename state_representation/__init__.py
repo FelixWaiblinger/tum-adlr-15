@@ -11,7 +11,7 @@ from state_representation.datasets import (
 from state_representation.models import (
     AutoEncoder,
     Encoder2,
-    EncoderVar,
     Decoder2,
+    EncoderVar,
     DecoderVar
 )

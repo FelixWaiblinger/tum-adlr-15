@@ -3,8 +3,7 @@
 import time
 
 import gymnasium as gym
-import adlr_environments # pylint: disable=unused-import
-from adlr_environments.constants import Observation
+from utils.constants import Observation
 
 options = {
     "num_static_obstacles": 5,
@@ -12,7 +11,12 @@ options = {
     "uncertainty": True
 }
 
-env = gym.make('World2D-v0', render_mode='human', observation_type=Observation.RGB, options=options)
+env = gym.make(
+    'World2D-v0',
+    render_mode='human',
+    observation_type=Observation.RGB,
+    options=options
+)
 
 observation, info = env.reset(seed=42)
 
