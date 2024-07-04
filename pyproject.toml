@@ -17,7 +17,8 @@ dependencies = [
  "scipy",
  "torch",
  "scikit-learn",
- "tqdm"
+ "tqdm",
+ "adlr_environments"
 ]
 authors = [
   {name = "Felix Waiblinger", email = "f.waiblinger@tum.de"},
@@ -33,8 +34,4 @@ packages = [
   "adlr_environments",
   "state_representation",
   "utils"
-]
-package-dir = [
-  "",
-  "adlr_environments"
 ]
