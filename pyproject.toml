@@ -34,3 +34,7 @@ packages = [
   "state_representation",
   "utils"
 ]
+package-dir = [
+  "",
+  "adlr_environments"
+]
