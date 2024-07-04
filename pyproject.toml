@@ -17,8 +17,7 @@ dependencies = [
  "scipy",
  "torch",
  "scikit-learn",
- "tqdm",
- "adlr_environments"
+ "tqdm"
 ]
 authors = [
   {name = "Felix Waiblinger", email = "f.waiblinger@tum.de"},
