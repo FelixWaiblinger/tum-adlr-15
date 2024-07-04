@@ -160,5 +160,8 @@ cython_debug/
 .idea/
 logs/
 videos/
-agents/
+*.zip
 *.pt
+
+# included agents
+!sac_bps_50_play.zip

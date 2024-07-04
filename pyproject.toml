@@ -3,8 +3,8 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Motion Planning in Dynamic Environments"
-description = "ADLR SS24 Team 15"
+name = "RLMP"
+description = "ADLR SS24 Team 15 - Trajectory planning with moving obstacles"
 version = "1.0"
 readme = "README.md"
 requires-python = ">= 3.7"

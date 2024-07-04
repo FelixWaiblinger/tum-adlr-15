@@ -6,7 +6,7 @@ from adlr_environments import LEVEL1, LEVEL2, LEVEL3
 from adlr_environments.wrapper import PlayWrapper
 from utils import arg_parse, create_env
 from utils.printing import *
-from utils.constants import MAX_PLAYMODE_STEPS
+from utils.constants import Input, MAX_PLAYMODE_STEPS
 from utils.config import BPS_CONFIG, AE_CONFIG, AGENT_PATH
 
 
@@ -17,7 +17,7 @@ ARGUMENTS = [
     (("-i", "--input"), str, "mouse")
 ]
 
-AGENT = AGENT_PATH + "sac_bps_50_fine"
+AGENT = AGENT_PATH + "sac_bps_50_play"
 NUM_GAMES = 5
 CONFIG = BPS_CONFIG # AE_CONFIG
 CONFIG.env.update({
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     CONFIG.env.update({"world": chosen_level})
 
     chosen_input = INPUTS.index(args.input)
-    CONFIG.wrapper.append((PlayWrapper, {"control": chosen_input}))
+    CONFIG.wrapper.append((PlayWrapper, {"control": Input(chosen_input)}))
 
     # create environment
     env = create_env(
@@ -62,7 +62,7 @@ if __name__ == "__main__":
             if model is not None:
                 action, _ = model.predict(observation, deterministic=True)
 
-            observation, reward, done, info = env.step(action)
+            observation, reward, done, info = env.step([action])
             ep_rewards[-1] += reward[0]
             env.render()
 

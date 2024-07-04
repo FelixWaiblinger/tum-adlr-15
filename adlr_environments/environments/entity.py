@@ -37,7 +37,7 @@ class Entity(ABC):
         pygame.draw.circle(
             surface=canvas,
             color=self.color.value,
-            center=(self.position + 1) * canvas.get_width() / 2,
+            center=((self.position + 1) * canvas.get_width() / 2).tolist(),
             radius=self.size * canvas.get_width() / 2
         )
 
