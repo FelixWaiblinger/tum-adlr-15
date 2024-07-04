@@ -28,3 +28,10 @@ maintainers = [
   {name = "Felix Waiblinger", email = "f.waiblinger@tum.de"},
   {name = "Niklas Schröder", email = "niklas.schroeder@tum.de"} 
 ]
+
+[tool.setuptools]
+packages = [
+  "adlr_environments",
+  "state_representation",
+  "utils"
+]
