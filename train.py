@@ -18,8 +18,8 @@ def environment_creation(num_workers: int = 2, options: Dict = None,
 
     def env_factory(render_mode: str = None):
         env = gym.make(id="World2D-v0", render_mode=render_mode, options=options)
-        env = FlattenObservation(env)
-        env = RewardWrapper(env, options)
+        #env = FlattenObservation(env)
+        #env = RewardWrapper(env, options)
         return env
 
     if vector_environment:

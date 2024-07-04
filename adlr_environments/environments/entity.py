@@ -7,7 +7,7 @@ import numpy as np
 from numpy.random import Generator
 
 from adlr_environments.utils import eucl, draw_arrow
-from adlr_environments.constants import RED, GREEN, BLUE, BLACK
+from adlr_environments.constants import RED, GREEN, BLUE, BLACK, WHITE
 
 
 class Entity(ABC):
@@ -54,7 +54,7 @@ class Agent(Entity):
         """Create a new agent"""
         self.position = np.zeros(2, dtype=np.float32)
         self.speed = np.zeros(2, dtype=np.float32)
-        self.color = BLUE
+        self.color = WHITE
         self.size = size
 
     def reset(self, entities: list, generator: Generator):
@@ -101,7 +101,7 @@ class Target(Entity):
     def __init__(self, size: float=0.1) -> None:
         """Create a new target"""
         self.position = 0.7 * np.ones(2, dtype=np.float32)
-        self.color = RED
+        self.color = WHITE
         self.size = size
 
 

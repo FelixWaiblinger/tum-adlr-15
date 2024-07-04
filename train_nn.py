@@ -16,13 +16,12 @@ from adlr_environments.utils import create_env
 from train_agent import ENV_OPTIONS, WRAPPER
 from train import environment_creation
 from constants import OPTIONS
-from  state_representation.niklas_models import Autoencoder, Encoder, Decoder
-
-
+from state_representation.niklas_models import Autoencoder, Encoder, Decoder, BpsToImgNetwork
+from StateTransitionTrainer.dataloader import BpsToImgDataset, BinarizeTransform
 
 DATA_PATH = "./state_representation/reset_image_data"
 MODEL_PATH = "./state_representation/autoencoder"
-N_SAMPLES = 50
+N_SAMPLES = 10000
 
 LATENT_SIZE = 500
 N_LAYERS = 3
@@ -36,12 +35,13 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def create_tqdm_bar(iterable, desc):
     """Create a progress bar"""
-    return tqdm(enumerate(iterable),total=len(iterable), ncols=150, desc=desc)
+    return tqdm(enumerate(iterable), total=len(iterable), ncols=150, desc=desc)
+
 
 def show_dataset():
     transform = CombineTransform([
         GrayscaleTransform(),
-        #NormalizeTransform(start=(0, 255), end=(0, 1)),
+        # NormalizeTransform(start=(0, 255), end=(0, 1)),
         # StandardizeTransform()
     ])
     dataset = ImageDataset(DATA_PATH, transform=transform)
@@ -54,10 +54,12 @@ def show_dataset():
     )
     img = dataset.__getitem__(0)
     image = img.numpy()
-    #image = image.transpose(1, 2, 0)
+    # image = image.transpose(1, 2, 0)
     plt.imshow(image, cmap="gray")
     plt.show()
     print("test")
+
+
 def training():
     """Train an autoencoder from scratch"""
     # load and prepare the data
@@ -111,7 +113,6 @@ def training():
                 val_loss=f"{val_loss:.8f}"
             )
 
-
         # check performance using validation data
         val_loss = 0
         val_loop = create_tqdm_bar(
@@ -120,7 +121,7 @@ def training():
         )
 
         with torch.no_grad():
-            for val_iteration, batch in val_loop:            
+            for val_iteration, batch in val_loop:
                 loss = model.validation_step(batch)
                 val_loss += loss.item()
 
@@ -172,16 +173,15 @@ def evaluate():
     plt.show()
 
 
-def record_dataset(num_samples: int=100):
+def record_dataset(num_samples: int = 100):
     """Record image samples of the environment"""
     options = OPTIONS
     options.update({"render": "rgb_array"})
-    env =environment_creation(options=OPTIONS)
-
+    env = environment_creation(options=OPTIONS)
 
     dataset = []
     for i in range(num_samples):
-        print(f"\rGenerating dataset: {(i/num_samples) * 100:3.2f}%", end="")
+        print(f"\rGenerating dataset: {(i / num_samples) * 100:3.2f}%", end="")
         _ = env.reset()
         image = env.render()
 
@@ -195,6 +195,7 @@ def record_dataset(num_samples: int=100):
     torch.save(dataset, DATA_PATH + ".pt")
     print("")
 
+
 def evaluate_autoencoder():
     transform = CombineTransform([
         GrayscaleTransform(),
@@ -203,9 +204,9 @@ def evaluate_autoencoder():
     ])
     dataset = ImageDataset(DATA_PATH, transform=transform)
     train_loader = DataLoader(dataset,
-        batch_size=BATCH_SIZE,
-        shuffle=True
-    )
+                              batch_size=BATCH_SIZE,
+                              shuffle=True
+                              )
     data_iter = iter(train_loader)
     images = next(data_iter)
     model = torch.load(MODEL_PATH + ".pt").to(DEVICE)
@@ -216,7 +217,7 @@ def evaluate_autoencoder():
         # plot both images
         img = images[i]
         img1 = img.numpy()
-    #image = image.transpose(1, 2, 0)
+        # image = image.transpose(1, 2, 0)
 
         # get old input range back
         # reconstruction = reconstruction * 255
@@ -237,10 +238,24 @@ def evaluate_autoencoder():
     plt.show()
 
 
+def check_dataset():
+    img_data_location = "./StateTransitionTrainer/bps_img_img.pt"
+    bps_data_location = "./StateTransitionTrainer/bps_img_bps.pt"
+    dataset = BpsToImgDataset(img_data=img_data_location, bps_data=bps_data_location, img_transform=BinarizeTransform())
+
+    train_dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+    train_features, train_labels = next(iter(train_dataloader))
+    print(f"Feature batch shape: {train_features.size()}")
+    print(f"Labels batch shape: {train_labels.size()}")
+    img = train_labels[4].numpy()
+    plt.imshow(img, cmap="gray")
+    plt.show()
+
 
 if __name__ == "__main__":
-    #record_dataset(num_samples=N_SAMPLES)
-    #show_dataset()
-    #training()
-    evaluate_autoencoder()
-    #evaluate()
+    # record_dataset(num_samples=N_SAMPLES)
+    # show_dataset()
+    # training()
+    # evaluate_autoencoder()
+    # evaluate()
+    check_dataset()

@@ -257,6 +257,12 @@ class World2D(gym.Env):
         canvas = pg.Surface((self.window_size, self.window_size))
         canvas.fill(WHITE)
 
+        self.target.draw(canvas)
+
+        # draw the agent
+        # NOTE: 'draw_direction=False' for dataset generation
+        self.agent.draw(canvas, draw_direction=False)
+
         # draw static obstacles
         for obstacle in self.static_obstacles:
             obstacle.draw(canvas)
@@ -266,11 +272,7 @@ class World2D(gym.Env):
             obstacle.draw(canvas)
 
         # draw the target
-        self.target.draw(canvas)
 
-        # draw the agent
-        # NOTE: 'draw_direction=False' for dataset generation
-        self.agent.draw(canvas, draw_direction=False)
 
         # create pointcloud from currently rendered image
         image = copy.deepcopy(pg.surfarray.pixels3d(canvas))
