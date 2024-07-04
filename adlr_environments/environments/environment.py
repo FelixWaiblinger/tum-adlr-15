@@ -297,6 +297,12 @@ class World2D(gym.Env):
         canvas = pg.Surface((PIXELS, PIXELS))
         canvas.fill(Color.WHITE.value)
 
+        self.target.draw(canvas)
+
+        # draw the agent
+        # NOTE: 'draw_direction=False' for dataset generation
+        self.agent.draw(canvas, draw_direction=False)
+
         # draw static obstacles
         for obstacle in self.static_obstacles:
             obstacle.draw(canvas)
@@ -306,7 +312,6 @@ class World2D(gym.Env):
             obstacle.draw(canvas)
 
         # draw the target
-        self.target.draw(canvas)
 
         # draw the agent NOTE: 'draw_direction=False' for dataset generation
         self.agent.draw(

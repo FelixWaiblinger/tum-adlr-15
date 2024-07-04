@@ -1,6 +1,8 @@
 import numpy
 import pandas as pd
-from adlr_environments.constants import DATASET_PATH, TRAININGS_DATA_PATH, OPTIONS
+import torch
+
+from adlr_environments.constants import DATASET_PATH, TRAININGS_DATA_PATH, OPTIONS, IMG_DATA_PATH, BPS_DATA_PATH
 import numpy as np
 import os
 from train import environment_creation
@@ -40,7 +42,7 @@ def create_samples():
 
     sample_list = []
     sample_counter = 0
-    for i in range(len(df_state_transitions)-3):
+    for i in range(len(df_state_transitions) - 3):
         # add array to list
         # if list has 3 elements without state transition everything is fine
         # if sample has a state transition, doesnt save list
@@ -65,6 +67,10 @@ def create_samples():
     print(str(sample_counter) + " Samples were created in " + TRAININGS_DATA_PATH)
 
 
+
+
+
 if __name__ == "__main__":
-    create_dataset(transition_number=10)
-    create_samples()
+    # create_dataset(transition_number=10)
+    # create_samples()
+    record_dataset(num_samples=10000, timesteps=3)

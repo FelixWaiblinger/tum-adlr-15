@@ -84,7 +84,6 @@ def training(epochs: int):
                 val_loss=f"{val_loss:.5f}"
             )
 
-
         # check performance using validation data
         val_loss = 0
         val_loop = create_tqdm_bar(
