@@ -28,6 +28,9 @@ class Entity(ABC):
                 entities.append(self)
                 break
 
+        else:
+            self.position = self.start_position
+
     def collision(self, other) -> bool:
         """Check for a collision"""
         distance = eucl(self.position, other.position)
@@ -84,6 +87,21 @@ class Agent(Entity):
                 head_width=20,
                 head_height=12
             )
+
+    def wall_collision(self, world_size: float):
+        x_position = self.position[0]
+        y_position = self.position[1]
+
+        if x_position < self.size:
+            return True
+        elif x_position > world_size - self.size:
+            return True
+        elif y_position < self.size:
+            return True
+        elif y_position > world_size - self.size:
+            return True
+        else:
+            return False
 
 
 class Target(Entity):

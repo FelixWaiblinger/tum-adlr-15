@@ -139,6 +139,12 @@ class RewardWrapper(gym.Wrapper):
 
     def __init__(self, env: gym.Env, playmode: bool=False) -> None:
         """Create reward function wrapper"""
+
+        self.r_target = options.get("r_target", 1)
+        self.r_collision = options.get("r_collision", -1)
+        self.r_time = options.get("r_time", 0)
+        self.r_distance = options.get("r_distance", 0)
+        self.r_wall_collision = options.get("r_wall_collision", 0)
         super().__init__(env)
 
         self.r_target = 10
@@ -153,16 +159,22 @@ class RewardWrapper(gym.Wrapper):
 
         obs, _, terminated, truncated, info = self.env.step(action)
 
-        #######################################################################
-        # PPO reward function
-        #######################################################################
-        # # reward minimizing distance to target
-        # r_dist = np.exp(-info["distance"])
-        # r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.1)
+        reward = 0
+        reward += self.r_target if info["win"] else 0
+        reward += self.r_collision if info["collision"] else 0
+        reward += self.r_time
+        reward += self.r_distance * info["distance"]
+        reward += self.r_wall_collision if info["wall_collision"] else 0
 
-        # # reward maximizing distance to obstacles
-        # r_obs = -np.exp(-info["obs_distance"])
-        # r_obs = self.r_distance * np.clip(r_obs, self.r_collision * 0.1, 0)
+        if info["win"]:
+            print("winnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn")
+        # if terminated:
+        #     print("terminated")
+        # if info["collision"]:
+        #     print("collision")
+        # if info["wall_collision"]:
+        #     print("wall_collision")
+        # print("reward:", reward)
 
         # # scale distance rewards by simulation time
         # time_factor = np.exp(-0.01 - info["timestep"] / MAX_EPISODE_STEPS)
