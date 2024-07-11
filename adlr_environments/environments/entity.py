@@ -6,7 +6,8 @@ import pygame
 import numpy as np
 from numpy.random import Generator
 
-from utils import eucl, draw_arrow, draw_uncertainty
+from utils import eucl
+from utils.visualization import draw_arrow, draw_uncertainty
 from utils.constants import Color, PIXELS
 
 

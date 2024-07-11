@@ -15,16 +15,16 @@ INPUTS = ["mouse", "keyboard", "controller", "agent"]
 LEVELS = [None, LEVEL1, LEVEL2, LEVEL3]
 ARGUMENTS = [
     (("-l", "--level"), int, 0),
-    (("-i", "--input"), str, "mouse")
+    (("-i", "--input"), str, "mouse"),
+    (("-u", "--uncertainty"), None, None)
 ]
 
-AGENT = AGENT_PATH + "sac_bps_50_play"
+AGENT = AGENT_PATH + "sac_ubps50_5M"
 NUM_GAMES = 5
 CONFIG = BPS_CONFIG # AE_CONFIG
 CONFIG.env.update({
     "env": "World2D-Play-v0",
     "episode_length": MAX_PLAYMODE_STEPS,
-    # "uncertainty": True
 })
 
 if __name__ == "__main__":
@@ -38,6 +38,8 @@ if __name__ == "__main__":
 
     chosen_input = INPUTS.index(args.input)
     CONFIG.wrapper.append((PlayWrapper, {"control": Input(chosen_input)}))
+
+    CONFIG.env.update({"uncertainty": args.uncertainty})
 
     # create environment
     env = create_env(

@@ -4,10 +4,11 @@ import time
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+import numpy as np
 from stable_baselines3 import SAC
 
 import adlr_environments
-from utils import arg_parse, create_env, linear
+from utils import arg_parse, create_env, linear_schedule
 from utils.config import BPS_CONFIG, AE_CONFIG, LOG_PATH, AGENT_PATH
 
 
@@ -20,7 +21,7 @@ ARGUMENTS = [
 
 # RL agent
 AGENT_TYPE = SAC
-AGENT = AGENT_PATH + "sac_bps_50"
+AGENT = AGENT_PATH + "sac_bps50_5M"
 
 CONFIG = BPS_CONFIG # AE_CONFIG
 CONFIG.env.update({
@@ -44,7 +45,7 @@ def start(num_steps: int):
         "MlpPolicy",
         env,
         tensorboard_log=LOG_PATH + AGENT,
-        learning_rate=linear(0.001)
+        learning_rate=linear_schedule(0.001)
     )
 
     model.learn(total_timesteps=num_steps, progress_bar=True)
@@ -71,11 +72,11 @@ def resume(num_steps: int, new_name: str=None):
     model.save(new_name)
 
 
-def evaluate(num_steps: int=1000):
+def evaluate(num_steps: int=1000, slow=False):
     """Evaluate a trained agent"""
     env = create_env(
         wrapper=CONFIG.wrapper,
-        render=True,
+        render=False, #True,
         obs_type=CONFIG.observation,
         num_workers=1,
         options=CONFIG.env
@@ -83,9 +84,15 @@ def evaluate(num_steps: int=1000):
 
     model = AGENT_TYPE.load(AGENT)
 
+    # TODO: remove before submission
+    # data, progress = [], 0
+    # for _ in range(100):
+    #     print(f"\rData generation: {progress}%", end="")
+
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
 
+    # TODO: remove before submission
     # NOTE: uncomment for video recording
     # env = VecVideoRecorder(
     #     env,
@@ -111,7 +118,9 @@ def evaluate(num_steps: int=1000):
             else:
                 stuck += 1
 
-        # time.sleep(0.2)
+        if slow:
+            time.sleep(0.2)
+
     env.close()
 
     print(f"Average reward over {episodes} episodes: {rewards / episodes}")
@@ -119,11 +128,24 @@ def evaluate(num_steps: int=1000):
     print(f"Crashrate: {100 * (crashes / episodes):.2f}%")
     print(f"Stuckrate: {100 * (stuck / episodes):.2f}%")
 
+    # TODO: remove before submission
+    #     success_rate = wins / episodes
+    #     crash_rate = crashes / episodes
+    #     mean_reward = rewards / episodes
+
+    #     data.append([success_rate, crash_rate, mean_reward])
+    #     progress += 1
+
+    # data = np.array(data)
+    # np.savez_compressed("plots/results_bps_50_u.npz", data)
+
+    # print(f"\rData generation: {progress}%")
+
 
 if __name__ == '__main__':
     # parse arguments from cli
     args = arg_parse(ARGUMENTS)
-    assert not all(arg is None for arg in [args.start, args.resume, args.eval])
+    assert any([args.start, args.resume, args.eval])
 
     # record reset dataset
     if args.start is not None:
