@@ -1,48 +1,43 @@
 """Training"""
 
-# import os
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import time
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from stable_baselines3 import SAC
-# from stable_baselines3.common.vec_env import VecVideoRecorder
-from gymnasium.wrappers import FlattenObservation, FrameStack
 
-from adlr_environments.wrapper import RewardWrapper
-from adlr_environments.utils import create_env, linear
+import adlr_environments
+from utils import arg_parse, create_env, linear
+from utils.config import BPS_CONFIG, AE_CONFIG, LOG_PATH, AGENT_PATH
 
 
-LOG_PATH = "./logs/"
-AGENT_PATH = "./agents/"
-
-AGENT_TYPE = SAC # PPO
-AGENT = "sac_stacked"
-
-WRAPPER = [
-    (FlattenObservation, {}),
-    (FrameStack, {"num_stack": 3}),
-    (RewardWrapper, {})
+ARGUMENTS = [
+    (("-s", "--start"), int, None),
+    (("-r", "--resume"), int, None),
+    (("-e", "--eval"), int, None),
+    (("-n", "--name"), str, None),
 ]
-ENV_OPTIONS = {
-    "step_length": 0.1,
-    "size_agent": 0.075,
-    "size_target": 0.1,
-    "num_static_obstacles": 0,
-    "size_static": 0.1,
-    "num_dynamic_obstacles": 8,
-    "size_dynamic": 0.075,
-    "bps_size": 50,
-    # NOTE: additional options I (Felix) use, but may not be necessary
-    "fork": True
-}
+
+# RL agent
+AGENT_TYPE = SAC
+AGENT = AGENT_PATH + "sac_bps_50"
+
+CONFIG = BPS_CONFIG # AE_CONFIG
+CONFIG.env.update({
+    # "fork": True,
+    # "world": adlr_environments.LEVEL3
+    "uncertainty": True
+})
 
 
 def start(num_steps: int):
     """Train a new agent from scratch"""
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=CONFIG.wrapper,
         render=False,
+        obs_type=CONFIG.observation,
         num_workers=8,
-        options=ENV_OPTIONS
+        options=CONFIG.env
     )
 
     model = AGENT_TYPE(
@@ -53,47 +48,40 @@ def start(num_steps: int):
     )
 
     model.learn(total_timesteps=num_steps, progress_bar=True)
-    model.save(AGENT_PATH)
+    model.save(AGENT)
 
 
 def resume(num_steps: int, new_name: str=None):
     """Resume training aka. perform additional training steps and update an
     existing agent
     """
-
-    if not new_name:
-        new_name = AGENT
+    new_name = AGENT if new_name is None else new_name
 
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=CONFIG.wrapper,
         render=False,
+        obs_type=CONFIG.observation,
         num_workers=8,
-        options=ENV_OPTIONS
+        options=CONFIG.env
     )
 
-    model = AGENT_TYPE.load(
-        AGENT_PATH + AGENT,
-        env,
-        tensorboard_log=LOG_PATH + new_name
-    )
+    model = AGENT_TYPE.load(AGENT, env, tensorboard_log=LOG_PATH + new_name)
 
     model.learn(total_timesteps=num_steps, progress_bar=True)
     model.save(new_name)
 
 
-def evaluate(name: str, num_steps: int=1000):
+def evaluate(num_steps: int=1000):
     """Evaluate a trained agent"""
-    options = ENV_OPTIONS
-    options.pop("fork")
-
     env = create_env(
-        wrapper=WRAPPER,
+        wrapper=CONFIG.wrapper,
         render=True,
+        obs_type=CONFIG.observation,
         num_workers=1,
-        options=options
+        options=CONFIG.env
     )
 
-    model = AGENT_TYPE.load(AGENT_PATH + name, env)
+    model = AGENT_TYPE.load(AGENT)
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
@@ -133,8 +121,22 @@ def evaluate(name: str, num_steps: int=1000):
 
 
 if __name__ == '__main__':
-    # start(num_steps=1_000_000)
+    # parse arguments from cli
+    args = arg_parse(ARGUMENTS)
+    assert not all(arg is None for arg in [args.start, args.resume, args.eval])
 
-    # resume(num_steps=1_000_000)
+    # record reset dataset
+    if args.start is not None:
+        assert args.start > 0, \
+            f"Number of training steps ({args.start}) must be positive!"
+        start(args.start)
 
-    evaluate(AGENT)
+    # train an autoencoder on the recorded data
+    elif args.resume is not None:
+        assert args.resume > 0, \
+            f"Number of training steps ({args.resume}) must be positive!"
+        resume(args.resume, args.name)
+
+    # evaluate the performance of the encoder by visual inspection
+    elif args.eval is not None:
+        evaluate(args.eval)

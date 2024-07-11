@@ -9,7 +9,7 @@ from stable_baselines3 import SAC
 from gymnasium.wrappers import FlattenObservation, FrameStack
 
 from adlr_environments.wrapper import RewardWrapper
-from adlr_environments.utils import create_env, to_py_dict, linear
+from utils import create_env, to_py_dict, linear
 
 
 RESULT_PATH = "./agents/random_search_results.json"

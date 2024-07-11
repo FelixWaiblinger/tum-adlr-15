@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MPDE"
+description = "ADLR SS24 Team 15 - Motion Planning in Dynamic Environments"
+version = "1.0"
+readme = "README.md"
+requires-python = ">= 3.7"
+dependencies = [
+ "numpy",
+ "matplotlib",
+ "pygame",
+ "gymnasium",
+ "stable-baselines3",
+ "scipy",
+ "torch",
+ "scikit-learn",
+ "tqdm"
+]
+authors = [
+  {name = "Felix Waiblinger", email = "f.waiblinger@tum.de"},
+  {name = "Niklas Schröder", email = "niklas.schroeder@tum.de"}
+]
+maintainers = [
+  {name = "Felix Waiblinger", email = "f.waiblinger@tum.de"},
+  {name = "Niklas Schröder", email = "niklas.schroeder@tum.de"} 
+]
+
+[tool.setuptools]
+packages = [
+  "adlr_environments",
+  "state_representation",
+  "utils"
+]

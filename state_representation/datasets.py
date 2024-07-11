@@ -2,8 +2,12 @@
 
 from typing import Any
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+from utils import create_env
+from utils.constants import Observation
 
 
 class ImageDataset(Dataset):
@@ -31,6 +35,7 @@ class ImageDataset(Dataset):
 
 
 class CombineTransform:
+    """Transform to apply multiple transforms to data"""
     def __init__(self, transforms: list) -> None:
         self.transforms = transforms
 
@@ -41,10 +46,11 @@ class CombineTransform:
 
 
 class NormalizeTransform:
+    """Transform to scale data from one range to another"""
     def __init__(self, start: tuple, end: tuple) -> None:
         self.a, self.b = start
         self.c, self.d = end
-        assert self.a != self.b, f"Start range must be a non-empty interval!"
+        assert self.a != self.b, "Start range must be a non-empty interval!"
 
     def __call__(self, batch: torch.Tensor):
         factor = (self.d - self.c) / (self.b - self.a)
@@ -52,7 +58,8 @@ class NormalizeTransform:
 
 
 class StandardizeTransform:
-    def __init__(self, mean=None, std=None, dim: tuple = None) -> None:
+    """Transform to remove data mean and scale inversly by data variance"""
+    def __init__(self, mean=None, std=None, dim: tuple=None) -> None:
         self.mean = mean
         self.std = std
         self.dim = dim
@@ -65,17 +72,37 @@ class StandardizeTransform:
         return (batch - self.mean) / self.std
 
 
-class GrayscaleTransform:
-    def __call__(self, img: torch.Tensor):
-        if not isinstance(img, torch.Tensor):
-            raise TypeError("Input should be a torch Tensor")
+def record_resets(save_dir: str, num_samples: int, options: dict):
+    """Record image samples of the environment"""
+    env = create_env(
+        wrapper=[],
+        render=False,
+        obs_type=Observation.RGB,
+        num_workers=1,
+        options=options
+    )
 
-        # Check if the input tensor has the correct dimensions
-        if len(img.shape) < 3 or img.shape[-3] != 3:
-            raise ValueError("Input tensor must have 3 channels in the last dimension")
-        weights = torch.tensor([0.2989, 0.5870, 0.1140])
-        weights = weights.view(3, 1, 1)
-        # Apply the weights to get the grayscale tensor
-        grayscale_tensor = ((img * weights).sum(dim=0)).to(torch.int32)
+    dataset, temp = None, None
+    for i in range(num_samples):
+        print(f"\rGenerating dataset: {(float(i+1)/num_samples) * 100:.2f}%", end="")
+        _ = env.reset()
+        image = env.render()
 
-        return grayscale_tensor
+        # change number of obstacles for each sample
+        n_static = np.random.choice([0, 1, 2, 3, 4, 5])
+        n_dynamic = np.random.choice([0, 1, 2, 3])
+        setattr(env, "options['num_static_obstacles']", n_static)
+        setattr(env, "options['num_dynamic_obstacles']", n_dynamic)
+
+        # NOTE: use 128x128 as resolution instead of 512x512 to save memory
+        image = image[2::4, 2::4, :].transpose([2, 0, 1])
+        image = np.expand_dims(image, 0)
+
+        temp = np.vstack([temp, image]) if temp is not None else image
+
+        if (i+1) % 1000 == 0:
+            dataset = np.vstack([dataset, temp]) if dataset is not None else temp
+            temp = None
+
+    torch.save(torch.from_numpy(dataset), save_dir + ".pt") # pylint: disable=E1101
+    print("")
