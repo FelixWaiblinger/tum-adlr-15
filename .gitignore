@@ -160,4 +160,10 @@ cython_debug/
 .idea/
 logs/
 videos/
-agents/
+*.zip
+*.pt
+*.npz
+
+# included agents
+!sac_bps50_5M.zip
+!sac_ubps50_5M.zip
