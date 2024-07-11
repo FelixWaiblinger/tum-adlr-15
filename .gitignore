@@ -162,7 +162,4 @@ logs/
 videos/
 *.zip
 *.pt
-
-# included agents
-!sac_bps_50_play.zip
 bps_to_image_prediction/lightning_logs
