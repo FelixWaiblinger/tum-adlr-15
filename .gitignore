@@ -165,3 +165,4 @@ agents/
 Trainingsdata/
 Datasets/
 *.pt
+bps_to_image_prediction/lightning_logs

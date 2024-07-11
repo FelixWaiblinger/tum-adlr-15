@@ -12,17 +12,29 @@ class LitBpsToImgNetwork(L.LightningModule):
         self.input_size = number_of_bps * 3
 
         # build network
+        # self.network = nn.Sequential(
+        #     nn.Linear(self.input_size, 500),
+        #     nn.BatchNorm1d(500),
+        #     nn.ReLU(),
+        #     nn.Dropout(p=0.5),
+        #     nn.Linear(500, 100),
+        #     nn.BatchNorm1d(100),
+        #     nn.Linear(100, self.output_size),
+        #     nn.BatchNorm1d(self.output_size),
+        #     nn.Sigmoid()
+        # )
         self.network = nn.Sequential(
-            nn.Linear(self.input_size, 500),
-            nn.BatchNorm1d(500),
+            nn.Linear(self.input_size, 100),
+            nn.BatchNorm1d(100),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(500, 100),
+            nn.Linear(100, 100),
             nn.BatchNorm1d(100),
             nn.Linear(100, self.output_size),
             nn.BatchNorm1d(self.output_size),
             nn.Sigmoid()
         )
+
         self.flatten = nn.Flatten()
 
     def forward(self, x):
@@ -40,7 +52,7 @@ class LitBpsToImgNetwork(L.LightningModule):
         y_hat = self.forward(x)
         y = y.float()
         loss = nn.functional.binary_cross_entropy(y_hat, y)
-        self.log("train_loss", loss, on_epoch=True)
+        self.log("train_loss", loss, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, val_batch, batch_idx):
@@ -48,4 +60,4 @@ class LitBpsToImgNetwork(L.LightningModule):
         y = y.float()
         y_hat = self.forward(x)
         loss = nn.functional.binary_cross_entropy(y_hat, y)
-        self.log("val_loss", loss)
+        self.log("val_loss", loss, prog_bar=True)

@@ -28,7 +28,7 @@ class BpsToImgDataset(Dataset):
         if self.target_transform:
             bps = self.target_transform(bps)
 
-        return bps, img
+        return bps, img  # ,self.images[index]
 
 
 class BinarizeTransform:
