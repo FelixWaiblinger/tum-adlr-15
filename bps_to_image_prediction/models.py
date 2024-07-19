@@ -4,7 +4,7 @@ import pytorch_lightning as L
 
 
 class LitBpsToImgNetwork(L.LightningModule):
-    def __init__(self, number_of_bps: int = 100, output_size: int = 64 * 64):
+    def __init__(self, number_of_bps: int = 500, output_size: int = 64 * 64):
         super().__init__()
 
         # set hyperparams
@@ -23,23 +23,26 @@ class LitBpsToImgNetwork(L.LightningModule):
         #     nn.BatchNorm1d(self.output_size),
         #     nn.Sigmoid()
         # )
-        self.network = nn.Sequential(
-            nn.Linear(self.input_size, 100),
-            nn.BatchNorm1d(100),
-            nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(100, 100),
-            nn.BatchNorm1d(100),
-            nn.Linear(100, self.output_size),
-            nn.BatchNorm1d(self.output_size),
-            nn.Sigmoid()
-        )
+        self.network_1 = nn.Sequential(
+                                       nn.Linear(self.input_size, 100),
+                                       nn.BatchNorm1d(100),
+                                       nn.ReLU(),
+                                       nn.Dropout(p=0.5),
+                                       nn.Linear(100, 100),
+                                       nn.BatchNorm1d(100),
+                                       nn.ReLU(),
+
+                                       )
+        self.network_2 = nn.Sequential(nn.Linear(100, self.output_size),
+                                       nn.BatchNorm1d(self.output_size),
+                                       nn.Sigmoid())
 
         self.flatten = nn.Flatten()
 
     def forward(self, x):
         x = self.flatten(x)
-        out_network = self.network(x)
+        out_network = self.network_1(x)
+        out_network = self.network_2(out_network)
         out_network = out_network.view(-1, 64, 64)
         return out_network
 

@@ -4,9 +4,12 @@ from train import environment_creation
 from adlr_environments.constants import OPTIONS
 import torch
 import numpy as np
+from utils import create_env
+from utils.config import BPS_CONFIG
 
-IMG_DATA_PATH = "./bps_img_img"
-BPS_DATA_PATH = "./bps_img_bps"
+IMG_DATA_PATH = "./bps_img_img_70k"
+BPS_DATA_PATH = "./bps_img_bps_70k"
+CONFIG = BPS_CONFIG
 
 
 def record_dataset(num_samples: int, timesteps: int):
@@ -21,7 +24,15 @@ def record_dataset(num_samples: int, timesteps: int):
 
     options = OPTIONS
     options.update({"render": "rgb_array"})
-    env = environment_creation(options=OPTIONS)
+
+    env = create_env(
+        wrapper=CONFIG.wrapper,
+        render=True,
+        obs_type=CONFIG.observation,
+        num_workers=1,
+        options=CONFIG.env
+    )
+
     bps_dataset = []
     img_dataset = []  # for k bps timesteps we have 1 image
     _ = env.reset()
@@ -32,8 +43,9 @@ def record_dataset(num_samples: int, timesteps: int):
 
         # generate samples by stepping through environment
         action = env.action_space.sample()
-        observation, reward, terminated, truncated, info = env.step(action)
-        img = env.render()
+        action = np.array([[action[0], action[1]], [action[0], action[1]]])
+        observation, reward, done, info = env.step(action)
+        img = observation["image"][0]
 
         if len(bps_sample) == timesteps:
             # when k timesteps where collected without termination we can save the k+1 image
@@ -49,10 +61,10 @@ def record_dataset(num_samples: int, timesteps: int):
             _ = env.reset()
             continue
 
-        if not terminated and len(bps_sample) < timesteps:
-            bps_sample.append(observation["state"])
+        if not done and len(bps_sample) < timesteps:
+            bps_sample.append(observation["state"][0])
 
-        if terminated:
+        if done:
             bps_sample = []  # reset list to 0 elements if environment terminated
 
     img_dataset = torch.stack(img_dataset)

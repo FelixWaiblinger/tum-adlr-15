@@ -1,10 +1,11 @@
 """Environment wrappers"""
 
 from typing import Tuple, Any
+from bps_to_image_prediction.models import LitBpsToImgNetwork
 
 import torch
 import pygame
-from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT # pylint: disable=E0611
+from pygame import K_UP, K_DOWN, K_LEFT, K_RIGHT  # pylint: disable=E0611
 import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Dict, Box
@@ -13,6 +14,8 @@ from stable_baselines3.common.logger import HParam
 
 from utils.constants import *
 from state_representation import BPS, AutoEncoder
+
+
 
 
 class BPSWrapper(gym.Wrapper):
@@ -53,7 +56,7 @@ class BPSWrapper(gym.Wrapper):
         obs = self._encode(obs)
 
         return obs, reward, terminated, truncated, info
-    
+
     def _encode(self, obs):
         """Encode the image observation as a latent representation"""
         assert isinstance(obs, dict), \
@@ -80,7 +83,7 @@ class AEWrapper(gym.Wrapper):
         """
         super().__init__(env)
 
-        self.ae: AutoEncoder = torch.load(model_path)#, map_location=DEVICE)
+        self.ae: AutoEncoder = torch.load(model_path)  # , map_location=DEVICE)
         self.transform = transform
         self.observation_space = gym.spaces.Dict({
             "agent": gym.spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
@@ -89,9 +92,9 @@ class AEWrapper(gym.Wrapper):
         })
 
     def reset(self, *,
-        seed: int=None,
-        options: dict=None
-    ) -> Tuple[Any, dict]:
+              seed: int = None,
+              options: dict = None
+              ) -> Tuple[Any, dict]:
         """Reset the environment"""
         obs, info = super().reset(seed=seed, options=options)
 
@@ -106,7 +109,7 @@ class AEWrapper(gym.Wrapper):
         obs = self._encode(obs)
 
         return obs, reward, terminated, truncated, info
-    
+
     def _encode(self, obs):
         """Encode the image observation as a latent representation"""
         assert isinstance(obs, dict), \
@@ -137,14 +140,8 @@ class AEWrapper(gym.Wrapper):
 class RewardWrapper(gym.Wrapper):
     """Customize the reward function of the environment"""
 
-    def __init__(self, env: gym.Env, playmode: bool=False) -> None:
+    def __init__(self, env: gym.Env, playmode: bool = False) -> None:
         """Create reward function wrapper"""
-
-        self.r_target = options.get("r_target", 1)
-        self.r_collision = options.get("r_collision", -1)
-        self.r_time = options.get("r_time", 0)
-        self.r_distance = options.get("r_distance", 0)
-        self.r_wall_collision = options.get("r_wall_collision", 0)
         super().__init__(env)
 
         self.r_target = 10
@@ -159,22 +156,16 @@ class RewardWrapper(gym.Wrapper):
 
         obs, _, terminated, truncated, info = self.env.step(action)
 
-        reward = 0
-        reward += self.r_target if info["win"] else 0
-        reward += self.r_collision if info["collision"] else 0
-        reward += self.r_time
-        reward += self.r_distance * info["distance"]
-        reward += self.r_wall_collision if info["wall_collision"] else 0
+        #######################################################################
+        # PPO reward function
+        #######################################################################
+        # # reward minimizing distance to target
+        # r_dist = np.exp(-info["distance"])
+        # r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.1)
 
-        if info["win"]:
-            print("winnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn")
-        # if terminated:
-        #     print("terminated")
-        # if info["collision"]:
-        #     print("collision")
-        # if info["wall_collision"]:
-        #     print("wall_collision")
-        # print("reward:", reward)
+        # # reward maximizing distance to obstacles
+        # r_obs = -np.exp(-info["obs_distance"])
+        # r_obs = self.r_distance * np.clip(r_obs, self.r_collision * 0.1, 0)
 
         # # scale distance rewards by simulation time
         # time_factor = np.exp(-0.01 - info["timestep"] / MAX_EPISODE_STEPS)
@@ -207,17 +198,17 @@ class RewardWrapper(gym.Wrapper):
 class PlayWrapper(gym.Wrapper):
     """Player"""
 
-    def __init__(self, env: gym.Env, control: Input=Input.MOUSE):
+    def __init__(self, env: gym.Env, control: Input = Input.MOUSE):
         super().__init__(env)
         assert control in [Input.MOUSE, Input.KEYBOARD, Input.CONTROLLER, Input.AGENT]
         self.player_pos = None
         self.control = control
-        pygame.init() # pylint: disable=no-member
+        pygame.init()  # pylint: disable=no-member
 
     def reset(self, *,
-        seed: int=None,
-        options: dict=None
-    ) -> Tuple[Any, dict]:
+              seed: int = None,
+              options: dict = None
+              ) -> Tuple[Any, dict]:
         """Reset the environment"""
         obs, info = super().reset(seed=seed, options=options)
         self.player_pos = obs[:2]
@@ -296,3 +287,79 @@ class HParamCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         return True
+
+
+class LastObservationWrapper(gym.Wrapper):
+    def __init__(self, env: gym.Env, num_points: int, checkpoint_location: str):
+        """Create a wrapper that converts a pointcloud of obstacles to a set
+        of basis points
+
+        Args:
+            ``env``: Environment to wrap
+            ``num_points``: Number of basis points to use
+
+        IMPORTANT: This wrapper should be placed before FlattenObservation!
+        """
+        super().__init__(env)
+        self.bps = BPS(num_points=num_points)
+        self.last_observations = []
+
+        self.observation_space = Dict({
+            "agent": Box(-1, 1, shape=(4,), dtype=DTYPE),
+            "target": Box(-1, 1, shape=(2,), dtype=DTYPE),
+            "state": Box(0, 2 * np.sqrt(2), shape=(100,), dtype=DTYPE),
+        })
+        self.network: LitBpsToImgNetwork = LitBpsToImgNetwork.load_from_checkpoint(checkpoint_location).cuda()
+        self.network.eval()
+
+    def reset(self, *,
+              seed: int = None,
+              options: dict = None
+              ) -> Tuple[Any, dict]:
+        """Reset the environment"""
+        obs, info = super().reset(seed=seed, options=options)
+        obs = self._encode_reset(obs)
+        return obs, info
+
+    def step(self, action):
+        """Step the environment once"""
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        obs = self._encode(obs)
+        # self.last_observations.pop(0)
+        # self.last_observations.append(obs["state"])
+        # obs["state"] = np.array(self.last_observations)
+
+        return obs, reward, terminated, truncated, info
+
+    def _encode(self, obs):
+        """Encode the image observation as a latent representation"""
+        assert isinstance(obs, dict), \
+            f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
+
+        # encode into basis point set
+        obs["state"] = self.bps.encode(obs["state"]).astype(DTYPE)
+        self.last_observations.pop(0)
+        self.last_observations.append(obs["state"])
+        # nn verwenden
+        stacked_bps = torch.tensor(self.last_observations, device="cuda")
+        stacked_bps = stacked_bps.flatten().unsqueeze(0)
+        prediction = self.network.network_1(stacked_bps)
+        obs["state"] = prediction.cpu().detach().numpy()
+
+        return obs
+
+    def _encode_reset(self, obs):
+        """Encode the image observation as a latent representation"""
+        assert isinstance(obs, dict), \
+            f"Type of observation must be an 'OrderedDict', was {type(obs)}!"
+
+        # encode into basis point set
+        obs["state"] = self.bps.encode(obs["state"]).astype(DTYPE)
+        self.last_observations = [obs["state"] for _ in range(3)]
+        stacked_bps = torch.tensor(self.last_observations, device="cuda")
+        stacked_bps = stacked_bps.flatten().unsqueeze(0)
+        prediction = self.network.network_1(stacked_bps)
+        obs["state"] = prediction.cpu().detach().numpy()
+
+        return obs
+

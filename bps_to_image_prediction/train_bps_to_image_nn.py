@@ -13,11 +13,13 @@ import torch
 
 BATCH_SIZE = 128
 DEVICE = "gpu" if torch.cuda.is_available() else "cpu"
-EPOCHS = 200
+EPOCHS = 70
 N_SAMPLES = 50000
-IMG_DATA_LOCATION = "./bps_img_img.pt"
-BPS_DATA_LOCATION = "./bps_img_bps.pt"
-CHECKPOINT_LOCATION = r"D:\uni\adl4r\code\tum-adlr-15\bps_to_image_prediction\lightning_logs\version_18\checkpoints\epoch=199-step=70400.ckpt"
+IMG_DATA_LOCATION = "./bps_img_img_70k.pt"
+BPS_DATA_LOCATION = "./bps_img_bps_70k.pt"
+CHECKPOINT_LOCATION = (r"D:\uni\adl4r\code\tum-adlr-15\bps_to_image_prediction\lightning_logs\version_20\checkpoints"
+                       r"\epoch=69-step=24640.ckpt")
+
 
 def training_lightning():
     """Trains a nn that maps from bps to images"""
@@ -37,7 +39,7 @@ def training_lightning():
         batch_size=BATCH_SIZE,
         shuffle=True
     )
-    model = LitBpsToImgNetwork()
+    model = LitBpsToImgNetwork(number_of_bps=500)
     trainer = L.Trainer(accelerator=DEVICE, max_epochs=EPOCHS)
     trainer.fit(model=model, train_dataloaders=train_loader, val_dataloaders=val_loader)
 
@@ -45,7 +47,6 @@ def training_lightning():
 def eval_ligthning():
     # load dataset
     dataset = BpsToImgDataset(img_data=IMG_DATA_LOCATION, bps_data=BPS_DATA_LOCATION, img_transform=BinarizeTransform())
-
 
     # split up into training and test dataset
     train_idx, val_idx = train_test_split(range(N_SAMPLES), test_size=0.1)
@@ -59,7 +60,6 @@ def eval_ligthning():
         batch_size=BATCH_SIZE,
         shuffle=True
     )
-
 
     model = LitBpsToImgNetwork.load_from_checkpoint(CHECKPOINT_LOCATION).cpu()
     model.eval()
@@ -141,14 +141,13 @@ def ingame_evaluation():
 
 
 def check_dataset():
-    img_data_location = "./bps_img_img.pt"
-    bps_data_location = "./bps_img_bps.pt"
+    img_data_location = "./bps_img_img_70k.pt"
+    bps_data_location = "./bps_img_bps_70k.pt"
     dataset = BpsToImgDataset(img_data=img_data_location, bps_data=bps_data_location, img_transform=BinarizeTransform())
 
     train_dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
     train_features, train_labels = next(iter(train_dataloader))
     for i in range(64):
-
         print(f"Feature batch shape: {train_features.size()}")
         print(f"Labels batch shape: {train_labels.size()}")
         img = train_labels[i].numpy()
@@ -156,11 +155,8 @@ def check_dataset():
         plt.show()
 
 
-
-
-
 if __name__ == "__main__":
     #training_lightning()
-    #eval_ligthning()
-    ingame_evaluation()
-    #check_dataset()
+    eval_ligthning()
+    # ingame_evaluation()
+    # check_dataset()
