@@ -9,7 +9,7 @@ from state_representation.datasets import CombineTransform, NormalizeTransform
 
 AGENT_PATH = "./agents/"
 LOG_PATH = "./logs/"
-AUTOENCODER = "./state_representation/autoencoder_random_obs.pt"
+AUTOENCODER = "./state_representation/ae50_random_obs.pt"
 TRANSFORM = CombineTransform([
     NormalizeTransform(start=(0, 255), end=(0, 1)),
 ])
@@ -55,4 +55,3 @@ class AE_CONFIG:
         "max_speed": 0.05,
         "uncertainty": False
     }
-    transform = TRANSFORM

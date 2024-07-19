@@ -167,3 +167,4 @@ videos/
 # included agents
 !sac_bps50_5M.zip
 !sac_ubps50_5M.zip
+!sac_ae50_5M.zip

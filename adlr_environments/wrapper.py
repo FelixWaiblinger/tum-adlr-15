@@ -114,6 +114,15 @@ class AEWrapper(gym.Wrapper):
 
         # image transformations
         image = obs.pop("image")
+
+        # remove agent from image
+        blue = np.all(image == Color.BLUE.value, axis=-1)
+        image[blue] = Color.WHITE.value
+        
+        # remove target from image
+        red = np.all(image == Color.RED.value, axis=-1)
+        image[red] = Color.WHITE.value
+
         image = image[2::4, 2::4, :].transpose([2, 0, 1])
         image = torch.from_numpy(np.expand_dims(image, 0))
         if self.transform is not None:

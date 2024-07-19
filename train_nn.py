@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 
 import adlr_environments
 from utils import arg_parse, create_env, create_tqdm_bar
-from utils.constants import DEVICE
+from utils.constants import DEVICE, Color
 from state_representation import AutoEncoder, ImageDataset, record_resets
 from utils.config import AE_CONFIG, TRANSFORM
 
 
 DATA_PATH = "./state_representation/reset_image_data_random_obs"
-MODEL_PATH = "./state_representation/autoencoder_random_obs_100.pt"
+MODEL_PATH = "./state_representation/ae50_random_obs.pt"
 ARGUMENTS = [
     (("-r", "--record"), int, None),
     (("-t", "--train"), int, None),
@@ -111,6 +111,14 @@ def evaluate(show: str):
 
     _ = env.reset()
     image_raw = env.render()
+
+    # remove agent from image
+    blue = np.all(image_raw == Color.BLUE.value, axis=-1)
+    image_raw[blue] = Color.WHITE.value
+
+    # remove target from image
+    red = np.all(image_raw == Color.RED.value, axis=-1)
+    image_raw[red] = Color.WHITE.value
 
     image_tch = image_raw[2::4, 2::4, :].transpose([2, 0, 1])
     image_tch = TRANSFORM(torch.from_numpy(np.expand_dims(image_tch, 0))) # pylint: disable=E1101

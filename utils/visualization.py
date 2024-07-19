@@ -127,11 +127,12 @@ def draw_bps(points: np.ndarray, pointcloud: np.ndarray) -> None:
     plt.show()
 
 
-def create_uncertainty_plots(data_paths: list):
+def create_uncertainty_plots(data_paths: list, colors: list):
     """Create violin plots for success, crash and reward of various models"""
-    success_rates = np.zeros((len(data_paths), 100))
-    crash_rates = np.zeros((len(data_paths), 100))
-    mean_rewards = np.zeros((len(data_paths), 100))
+    n_models = len(data_paths)
+    success_rates = np.zeros((n_models, 100))
+    crash_rates = np.zeros((n_models, 100))
+    mean_rewards = np.zeros((n_models, 100))
 
     # collect and sort saved data
     for i, path in enumerate(data_paths):
@@ -141,23 +142,20 @@ def create_uncertainty_plots(data_paths: list):
         mean_rewards[i] = data[:, 2][0]
 
     names = [
-        "None",
-        "Inference",
-        "Training",
-        "Training &\nInference"
-    ]
-    color = [
-        "slateblue",
-        "cornflowerblue",
-        "olivedrab",
-        "yellowgreen"
-    ]
+        "BPS",
+        "BPS\n+Inference noise",
+        "AE",
+        "AE\n+Inference noise",
+        "BPS\n+Training noise",
+        "BPS\n+Training noise\n+Inference noise"
+    ][:n_models]
+    
 
     # success rate plot
     a = plt.subplot()
     violin = a.violinplot(
         dataset=success_rates.tolist(),
-        positions=[1, 2, 3, 4],
+        positions=range(n_models),
         showmeans=False,
         showmedians=True
     )
@@ -166,10 +164,10 @@ def create_uncertainty_plots(data_paths: list):
         violin[part].set_edgecolor("black")
 
     for i, vp in enumerate(violin['bodies']):
-        vp.set_facecolor(color[i])
+        vp.set_facecolor(colors[i])
         vp.set_alpha(0.7)
 
-    a.set_xticks(ticks=[1, 2, 3, 4], labels=names)
+    a.set_xticks(ticks=np.arange(n_models), labels=names)
     plt.suptitle("Effects of Uncertainty")
     plt.title("Average Success-rate per Episode")
     plt.show()
@@ -178,6 +176,7 @@ def create_uncertainty_plots(data_paths: list):
     a = plt.subplot()
     violin = a.violinplot(
         dataset=crash_rates.tolist(),
+        positions=range(n_models),
         showmeans=False,
         showmedians=True
     )
@@ -186,11 +185,11 @@ def create_uncertainty_plots(data_paths: list):
         violin[part].set_edgecolor("black")
 
     for i, vp in enumerate(violin['bodies']):
-        vp.set_facecolor(color[i])
+        vp.set_facecolor(colors[i])
         vp.set_alpha(0.7)
 
-    a.set_xticks(ticks=[1, 2, 3, 4], labels=names)
-    plt.suptitle("Effects of Uncertainty")
+    a.set_xticks(ticks=range(n_models), labels=names)
+    plt.suptitle("Performance of Uncertainty")
     plt.title("Average Crash-rate per Episode")
     plt.show()
 
@@ -200,7 +199,7 @@ def create_uncertainty_plots(data_paths: list):
         names,
         height=mean_rewards[:, 0] - low,
         bottom=low,
-        color=color
+        color=colors
     )
     plt.suptitle("Effects of Uncertainty")
     plt.title("Average Reward per Episode")
