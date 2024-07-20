@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # optionally load agent
     model = SAC.load(AGENT) if chosen_input == 3 else None
 
-    action, wins, ep_rewards = 0, 0, []
+    action, wins, ep_rewards = [0, 0], 0, []
     for game in range(NUM_GAMES):
         ep_rewards.append(0)
 

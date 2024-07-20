@@ -7,6 +7,7 @@ from adlr_environments.wrapper import BPSWrapper, AEWrapper, RewardWrapper
 from state_representation.datasets import CombineTransform, NormalizeTransform
 
 
+CHECKPOINT_LOCATION = r"./state_representation/epoch=69-step=24640.ckpt"
 AGENT_PATH = "./agents/"
 LOG_PATH = "./logs/"
 AUTOENCODER = "./state_representation/ae50_random_obs.pt"

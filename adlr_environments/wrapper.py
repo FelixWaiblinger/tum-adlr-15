@@ -153,7 +153,6 @@ class RewardWrapper(gym.Wrapper):
         self.r_target = 10
         self.r_collision = -10
         self.r_time = -0.05
-        self.r_distance = 2
         self.r_wall = -0.1
         self.max_steps = 500 if playmode else MAX_EPISODE_STEPS
 
@@ -162,31 +161,6 @@ class RewardWrapper(gym.Wrapper):
 
         obs, _, terminated, truncated, info = self.env.step(action)
 
-        #######################################################################
-        # PPO reward function
-        #######################################################################
-        # # reward minimizing distance to target
-        # r_dist = np.exp(-info["distance"])
-        # r_dist = self.r_distance * np.clip(r_dist, 0, self.r_target * 0.1)
-
-        # # reward maximizing distance to obstacles
-        # r_obs = -np.exp(-info["obs_distance"])
-        # r_obs = self.r_distance * np.clip(r_obs, self.r_collision * 0.1, 0)
-
-        # # scale distance rewards by simulation time
-        # time_factor = np.exp(-0.01 - info["timestep"] / MAX_EPISODE_STEPS)
-        # time_factor = self.r_time * time_factor
-
-        # # reward target reaching and obstacle avoidance
-        # r_win = self.r_target if info["win"] else 0
-        # r_crash = self.r_collision if info["collision"] else 0
-
-        # reward = ((r_dist + r_obs) * time_factor) + r_win + r_crash
-        #######################################################################
-
-        #######################################################################
-        # SAC reward function
-        #######################################################################
         # penalize long simulation times
         r_time = self.r_time * info["timestep"] / self.max_steps
 
@@ -196,7 +170,6 @@ class RewardWrapper(gym.Wrapper):
         r_wall = self.r_wall if info["wall_collision"] else 0
 
         reward = r_time + r_win + r_crash + r_wall
-        #######################################################################
 
         return obs, reward, terminated, truncated, info
 

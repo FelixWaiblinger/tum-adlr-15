@@ -4,7 +4,6 @@ import time
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-import numpy as np
 from stable_baselines3 import SAC
 
 import adlr_environments
@@ -21,13 +20,14 @@ ARGUMENTS = [
 
 # RL agent
 AGENT_TYPE = SAC
-AGENT = AGENT_PATH + "sac_ae50_5M"
+AGENT = AGENT_PATH + "sac_xy"
 
-CONFIG = AE_CONFIG
+CONFIG = BPS_CONFIG
+CONFIG.wrapper.pop(0)
 CONFIG.env.update({
     # "fork": True,
     # "world": adlr_environments.LEVEL3
-    "uncertainty": True
+    # "uncertainty": True
 })
 
 
@@ -72,11 +72,11 @@ def resume(num_steps: int, new_name: str=None):
     model.save(new_name)
 
 
-def evaluate(num_steps: int=1000, slow=False):
+def evaluate(num_steps: int=1000, slow=True):
     """Evaluate a trained agent"""
     env = create_env(
         wrapper=CONFIG.wrapper,
-        render=False,
+        render=True,
         obs_type=CONFIG.observation,
         num_workers=1,
         options=CONFIG.env
@@ -84,13 +84,8 @@ def evaluate(num_steps: int=1000, slow=False):
 
     model = AGENT_TYPE.load(AGENT)
 
-    # TODO: remove before submission
-    data, progress = [], 0
-    for _ in range(100):
-        print(f"\rData generation: {progress}%", end="")
-
-        rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
-        obs = env.reset()
+    rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
+    obs = env.reset()
 
     # TODO: remove before submission
     # NOTE: uncomment for video recording
@@ -103,43 +98,30 @@ def evaluate(num_steps: int=1000, slow=False):
     # )
     # obs = env.reset()
 
-        for _ in range(num_steps):
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, info = env.step(action)
-            rewards += reward
-            env.render()
+    for _ in range(num_steps):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, done, info = env.step(action)
+        rewards += reward
+        env.render()
 
-            if done:
-                episodes += 1
-                if info[0]["win"]:
-                    wins += 1
-                elif info[0]["collision"]:
-                    crashes += 1
-                else:
-                    stuck += 1
+        if done:
+            episodes += 1
+            if info[0]["win"]:
+                wins += 1
+            elif info[0]["collision"]:
+                crashes += 1
+            else:
+                stuck += 1
 
-            if slow:
-                time.sleep(0.2)
+        if slow:
+            time.sleep(0.2)
 
-    # env.close()
+    env.close()
 
-    # print(f"Average reward over {episodes} episodes: {rewards / episodes}")
-    # print(f"Successrate: {100 * (wins / episodes):.2f}%")
-    # print(f"Crashrate: {100 * (crashes / episodes):.2f}%")
-    # print(f"Stuckrate: {100 * (stuck / episodes):.2f}%")
-
-    # TODO: remove before submission
-        success_rate = wins / episodes
-        crash_rate = crashes / episodes
-        mean_reward = rewards / episodes
-
-        data.append([success_rate, crash_rate, mean_reward])
-        progress += 1
-
-    data = np.array(data)
-    np.savez_compressed("plots/results_ae50_u.npz", data)
-
-    print(f"\rData generation: {progress}%")
+    print(f"Average reward over {episodes} episodes: {rewards / episodes}")
+    print(f"Successrate: {100 * (wins / episodes):.2f}%")
+    print(f"Crashrate: {100 * (crashes / episodes):.2f}%")
+    print(f"Stuckrate: {100 * (stuck / episodes):.2f}%")
 
 
 if __name__ == '__main__':

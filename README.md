@@ -6,15 +6,8 @@ Advanced Deep Learning for Robotics - SS24 - Project 12: Trajectory Planning wit
 Assuming you have your preferred virtual environment set up, the environments in this repository have to be registered:
 
 ```bash
-pip install -e adlr_environments/
-```
-
-## Environment check-up
-
-Then simply run the simulation and witness astonishing random movements:
-
-```bash
-python simulation.py
+cd tum-adlr-15/
+pip install .
 ```
 
 ## End-to-End Reinforcement Learning
@@ -23,29 +16,40 @@ Training your own agent is easily possible, although you might have to tweak env
 Then use the following command:
 
 ```bash
-python train_agent.py
+python train_agent.py <option> <arg>
 ```
+
+Available options:
+- ``-s`` / ``--start``: Start training a new agent for ``<arg>`` timesteps
+- ``-r`` / ``--resume``: Continue training a pretrained agent for ``<arg>`` timesteps
+- ``-e`` / ``--eval``: Evaluate the performance of a trained agent over ``<arg>`` timesteps 
 
 ## State representation
 
 There's also the option to tune your own neural network for state representation using:
 
 ```bash
-python train_nn.py
+python train_nn.py <option> <arg>
 ```
+
+Available options:
+- ``-r`` / ``--record``: Record ``<arg>`` image data samples from environment resets
+- ``-t`` / ``--train``: Train an autoencoder for ``<arg>`` epochs on recorded data
+- ``-e`` / ``--eval``: Evaluate the performance of an autoencoder (``image`` / ``loss``)
 
 ## Playtime
 
-And finally, there's a competition... of course!
+And finally, a mode to evaluate your motion planning abilities!  
 Using commandline arguments you can choose how to play:
 
 ```bash
-python play.py --level <level> --input <input>
+python play.py --level <level> --input <input> [--uncertainty]
 ```
 
-Available commands include:
-- level: [ ```1```, ```2```, ```3``` ]
-- input: [ ```mouse```, ```keyboard```, ```controller```, ```agent``` ]
+Available options:
+- ``-l`` / ``--level``: one of [ ```1```, ```2```, ```3``` ]
+- ``-i`` / ``input``: one of [ ```mouse```, ```keyboard```, ```controller```, ```agent``` ]
+- ``-u`` / ``--uncertainty``: Choose to play with noisy observations
 
 **NOTE**: using ```--input agent``` lets you compare your times to our latest benchmark agent.
 
