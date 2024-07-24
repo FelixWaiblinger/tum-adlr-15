@@ -160,10 +160,19 @@ cython_debug/
 .idea/
 logs/
 videos/
+*.ckpt
+*.svg
+*.csv
 *.zip
 *.pt
 *.npz
 
 # included agents
-!sac_bps50_5M.zip
-!sac_ubps50_5M.zip
+!sac_xy.zip
+!sac_bps.zip
+!sac_ae.zip
+!sac_3bp.zip
+!sac_ubps.zip
+
+# include models
+!ae50_random_obs.pt

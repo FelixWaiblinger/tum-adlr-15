@@ -4,7 +4,6 @@ import time
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-import numpy as np
 from stable_baselines3 import SAC
 
 import adlr_environments
@@ -21,13 +20,14 @@ ARGUMENTS = [
 
 # RL agent
 AGENT_TYPE = SAC
-AGENT = AGENT_PATH + "sac_bps50_5M"
+AGENT = AGENT_PATH + "sac_xy"
 
-CONFIG = BPS_CONFIG # AE_CONFIG
+CONFIG = BPS_CONFIG
+CONFIG.wrapper.pop(0)
 CONFIG.env.update({
     # "fork": True,
     # "world": adlr_environments.LEVEL3
-    "uncertainty": True
+    # "uncertainty": True
 })
 
 
@@ -72,22 +72,17 @@ def resume(num_steps: int, new_name: str=None):
     model.save(new_name)
 
 
-def evaluate(num_steps: int=1000, slow=False):
+def evaluate(num_steps: int=1000, slow=True):
     """Evaluate a trained agent"""
     env = create_env(
         wrapper=CONFIG.wrapper,
-        render=False, #True,
+        render=True,
         obs_type=CONFIG.observation,
         num_workers=1,
         options=CONFIG.env
     )
 
     model = AGENT_TYPE.load(AGENT)
-
-    # TODO: remove before submission
-    # data, progress = [], 0
-    # for _ in range(100):
-    #     print(f"\rData generation: {progress}%", end="")
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
@@ -127,19 +122,6 @@ def evaluate(num_steps: int=1000, slow=False):
     print(f"Successrate: {100 * (wins / episodes):.2f}%")
     print(f"Crashrate: {100 * (crashes / episodes):.2f}%")
     print(f"Stuckrate: {100 * (stuck / episodes):.2f}%")
-
-    # TODO: remove before submission
-    #     success_rate = wins / episodes
-    #     crash_rate = crashes / episodes
-    #     mean_reward = rewards / episodes
-
-    #     data.append([success_rate, crash_rate, mean_reward])
-    #     progress += 1
-
-    # data = np.array(data)
-    # np.savez_compressed("plots/results_bps_50_u.npz", data)
-
-    # print(f"\rData generation: {progress}%")
 
 
 if __name__ == '__main__':

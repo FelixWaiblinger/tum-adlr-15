@@ -296,11 +296,12 @@ class World2D(gym.Env):
         # draw the target
         self.target.draw(canvas)
 
-        # draw the agent NOTE: 'draw_direction=False' for dataset generation
+        # draw the agent
+        # NOTE: 'draw_direction=False' for dataset generation
         self.agent.draw(
             canvas,
             draw_vision=self.options["uncertainty"],
-            draw_direction=False
+            draw_direction=True
         )
 
         if self.render_mode == "human":

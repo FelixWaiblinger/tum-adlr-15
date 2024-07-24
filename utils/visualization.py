@@ -7,6 +7,32 @@ import matplotlib.pyplot as plt
 from utils.constants import Color, PIXELS
 
 
+NAMES = [
+    "XY",
+    "XY\n+Noise",
+    "BPS",
+    "BPS\n+Noise",
+    "AE",
+    "AE\n+Noise",
+    "3BP",
+    "3BP\n+Noise",
+    "UBPS",
+    "UBPS\n+Noise"
+]
+COLORS = [
+    "yellowgreen",
+    "limegreen",
+    "mediumseagreen",
+    "lightseagreen",
+    "steelblue",
+    "slateblue",
+    "mediumorchid",
+    "violet",
+    "salmon",
+    "sandybrown",
+]
+
+
 def draw_uncertainty(
     canvas: pygame.Surface,
     center: pygame.Vector2,
@@ -14,7 +40,7 @@ def draw_uncertainty(
 ) -> pygame.Surface:
     """Blur the image except the circular area around the agent (center)"""
     white = Color.WHITE.value
-    low_res = PIXELS // 32
+    low_res = PIXELS // 16
 
     # create mask
     mask = pygame.Surface((PIXELS, PIXELS))
@@ -127,37 +153,48 @@ def draw_bps(points: np.ndarray, pointcloud: np.ndarray) -> None:
     plt.show()
 
 
-def create_uncertainty_plots(data_paths: list):
-    """Create violin plots for success, crash and reward of various models"""
-    success_rates = np.zeros((len(data_paths), 100))
-    crash_rates = np.zeros((len(data_paths), 100))
-    mean_rewards = np.zeros((len(data_paths), 100))
+def create_learning_curve_plot(data_paths: list):
+    n_models = len(data_paths)
+    mean_rewards = []
+
+    # collect and sort saved data
+    for i, path in enumerate(data_paths):
+        data = np.genfromtxt(path, delimiter=',')[1:, 1:]
+        mean_rewards.append(data)
+
+    handles = []
+    for i in range(n_models):
+        xs = mean_rewards[i][:, 0]
+        ys = mean_rewards[i][:, 1]
+        ys = np.pad(ys, 10, mode="edge")[:-1]
+        window = np.lib.stride_tricks.sliding_window_view(ys, 20)
+        ys_mean = np.mean(window, axis=-1)
+        ys_std = np.clip(np.var(window, axis=-1), 0, 5)
+        plt.fill_between(xs, ys_mean-ys_std, ys_mean+ys_std, alpha=0.3, color=COLORS[2*i])
+        line, = plt.plot(xs, ys_mean, color=COLORS[2*i])
+        handles.append(line)
+    plt.title("Learning Curve per Agent")
+    plt.legend(handles, NAMES[0:8:2], fontsize="large")
+    plt.xlabel("Training Steps")
+    plt.ylabel("Mean Reward")
+    plt.grid()
+    plt.show()
+
+
+def create_success_plot(data_paths: list, env: str, obs: str):
+    n_models = len(data_paths)
+    success_rates = np.zeros((n_models, 100))
 
     # collect and sort saved data
     for i, path in enumerate(data_paths):
         data = np.load(path, allow_pickle=True)['arr_0']
         success_rates[i] = data[:, 0]
-        crash_rates[i] = data[:, 1]
-        mean_rewards[i] = data[:, 2][0]
-
-    names = [
-        "None",
-        "Inference",
-        "Training",
-        "Training &\nInference"
-    ]
-    color = [
-        "slateblue",
-        "cornflowerblue",
-        "olivedrab",
-        "yellowgreen"
-    ]
-
+    
     # success rate plot
     a = plt.subplot()
     violin = a.violinplot(
-        dataset=success_rates.tolist(),
-        positions=[1, 2, 3, 4],
+        dataset=(success_rates * 100).tolist(),
+        positions=[0, 1, 2, 3],
         showmeans=False,
         showmedians=True
     )
@@ -166,51 +203,41 @@ def create_uncertainty_plots(data_paths: list):
         violin[part].set_edgecolor("black")
 
     for i, vp in enumerate(violin['bodies']):
-        vp.set_facecolor(color[i])
+        vp.set_facecolor(COLORS[2*i])
         vp.set_alpha(0.7)
 
-    a.set_xticks(ticks=[1, 2, 3, 4], labels=names)
-    plt.suptitle("Effects of Uncertainty")
-    plt.title("Average Success-rate per Episode")
+    a.set_xticks(ticks=[0, 1, 2, 3], labels=NAMES[0:8:2])
+    plt.title("Performance in " + env + " Environment")
+    plt.text(x=1.8, y=95, s=obs, fontsize="large", bbox={"facecolor": "white"})
+    plt.xlabel("Agents")
+    plt.ylabel("Success per Episode [%]")
+    plt.grid(axis='y')
     plt.show()
 
-    # crash rate plot
-    a = plt.subplot()
-    violin = a.violinplot(
-        dataset=crash_rates.tolist(),
-        showmeans=False,
-        showmedians=True
-    )
 
-    for part in ["cbars", "cmaxes", "cmins", "cmedians"]:
-        violin[part].set_edgecolor("black")
+def create_uncertainty_plot(data_paths: list):
+    """Create violin plots for success, crash and reward of various models"""
+    n_models = len(data_paths)
+    mean_rewards = np.zeros((n_models, 100))
 
-    for i, vp in enumerate(violin['bodies']):
-        vp.set_facecolor(color[i])
-        vp.set_alpha(0.7)
-
-    a.set_xticks(ticks=[1, 2, 3, 4], labels=names)
-    plt.suptitle("Effects of Uncertainty")
-    plt.title("Average Crash-rate per Episode")
-    plt.show()
+    # collect and sort saved data
+    for i, path in enumerate(data_paths):
+        data = np.load(path, allow_pickle=True)['arr_0']
+        mean_rewards[i] = data[:, 2][0]
 
     # reward plot
     low = np.min(mean_rewards) - 1
     plt.bar(
-        names,
+        NAMES,
         height=mean_rewards[:, 0] - low,
         bottom=low,
-        color=color
+        color=COLORS
     )
-    plt.suptitle("Effects of Uncertainty")
-    plt.title("Average Reward per Episode")
-
+    plt.title("Effects of Noisy Observations")
+    plt.xlabel("Agents")
+    plt.ylabel("Mean Reward per Episode")
+    plt.grid(axis="y")
     plt.show()
-
-
-def create_training_plots(data_paths: list):
-    """Test"""
-    pass
 
 
 __all__ = [
