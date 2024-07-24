@@ -20,10 +20,10 @@ ARGUMENTS = [
 
 # RL agent
 AGENT_TYPE = SAC
-AGENT = AGENT_PATH + "sac_xy"
+AGENT = AGENT_PATH + "sac_bps"
 
 CONFIG = BPS_CONFIG
-CONFIG.wrapper.pop(0)
+# CONFIG.wrapper.pop(0) # NOTE: only necessary for sac_xy
 CONFIG.env.update({
     # "fork": True,
     # "world": adlr_environments.LEVEL3
@@ -72,7 +72,7 @@ def resume(num_steps: int, new_name: str=None):
     model.save(new_name)
 
 
-def evaluate(num_steps: int=1000, slow=True):
+def evaluate(num_steps: int=1000):
     """Evaluate a trained agent"""
     env = create_env(
         wrapper=CONFIG.wrapper,
@@ -113,8 +113,8 @@ def evaluate(num_steps: int=1000, slow=True):
             else:
                 stuck += 1
 
-        if slow:
-            time.sleep(0.2)
+        # NOTE: uncomment to better see what's happening during evaluation 
+        # time.sleep(0.2)
 
     env.close()
 

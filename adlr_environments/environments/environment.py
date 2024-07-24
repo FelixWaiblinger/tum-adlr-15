@@ -95,7 +95,7 @@ class World2D(gym.Env):
         else:
             noise = np.zeros((self.n_obstacles + 2, 2))
 
-        obs = {}#OrderedDict()
+        obs = {}
         if self.observation_type != Observation.RGB:
             # add agent
             agent = self.agent.position

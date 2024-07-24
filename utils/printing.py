@@ -30,7 +30,7 @@ def print_round_end(w: bool, r: float):
 def print_game_end(w: int, rs: list, ng: int):
     """Print info at the end of the game"""
     print("\n=== GAME OVER ===")
-    print(f"Episode Rewards: {[round(r, 3) for r in rs]}")
+    print(f"Episode Rewards: {[round(float(r), 3) for r in rs]}")
     print(f"Average Reward: {np.mean(rs):.3f}")
     print(f"Success Rate: {w}/{ng} = {(float(w) / ng) * 100:.1f}%")
 
