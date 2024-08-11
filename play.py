@@ -8,7 +8,7 @@ from adlr_environments.wrapper import PlayWrapper
 from utils import arg_parse, create_env
 from utils.printing import *
 from utils.constants import Input, MAX_PLAYMODE_STEPS
-from utils.config import BPS_CONFIG, AE_CONFIG, AGENT_PATH
+from utils.config import BPS_CONFIG, AGENT_PATH
 
 
 INPUTS = ["mouse", "keyboard", "controller", "agent"]
@@ -21,7 +21,7 @@ ARGUMENTS = [
 
 AGENT = AGENT_PATH + "sac_ubps50_5M"
 NUM_GAMES = 5
-CONFIG = BPS_CONFIG # AE_CONFIG
+CONFIG = BPS_CONFIG
 CONFIG.env.update({
     "env": "World2D-Play-v0",
     "episode_length": MAX_PLAYMODE_STEPS,

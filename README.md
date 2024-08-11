@@ -3,7 +3,8 @@ Advanced Deep Learning for Robotics - SS24 - Project 12: Trajectory Planning wit
 
 ## Getting Started
 
-Assuming you have your preferred virtual environment set up, the environments in this repository have to be registered:
+All experiments were conducted using Python 3.7.16 and package versions as specified in the ```pyproject.toml``` file.
+Assuming you have your preferred virtual environment set up, the environments in this repository have to be registered and all dependencies have to be installed:
 
 ```bash
 cd tum-adlr-15/
@@ -22,7 +23,9 @@ python train_agent.py <option> <arg>
 Available options:
 - ``-s`` / ``--start``: Start training a new agent for ``<arg>`` timesteps
 - ``-r`` / ``--resume``: Continue training a pretrained agent for ``<arg>`` timesteps
-- ``-e`` / ``--eval``: Evaluate the performance of a trained agent over ``<arg>`` timesteps 
+- ``-e`` / ``--eval``: Evaluate the performance of a trained agent over ``<arg>`` timesteps
+
+Fine-tuning the environment before (or after) training is possible and explained [here](https://github.com/FelixWaiblinger/tum-adlr-15/tree/main/adlr_environments#readme).
 
 ## State representation
 
@@ -54,4 +57,5 @@ Available options:
 **NOTE**: using ```--input agent``` lets you compare your times to our latest benchmark agent.
 
 ## Important References & Links
+
 - Basis Point Sets Repository: https://github.com/sergeyprokudin/bps

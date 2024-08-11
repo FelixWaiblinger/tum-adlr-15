@@ -74,18 +74,21 @@ class AEWrapper(gym.Wrapper):
 
         Args:
             ``env``: Environment to wrap
-            ``latent_size``: Size of the learned latent space
+            ``model_path``: file path of the autoencoder model to use
+            ``transform``: optional transforms applied to the image observation
 
         IMPORTANT: This wrapper should be placed before FlattenObservation!
         """
         super().__init__(env)
 
-        self.ae: AutoEncoder = torch.load(model_path)#, map_location=DEVICE)
+        self.ae: AutoEncoder = torch.load(model_path)
         self.transform = transform
         self.observation_space = gym.spaces.Dict({
             "agent": gym.spaces.Box(-1, 1, shape=(4,), dtype=DTYPE),
             "target": gym.spaces.Box(-1, 1, shape=(2,), dtype=DTYPE),
-            "state": gym.spaces.Box(-1, 1, shape=(self.ae.encoder.latent_size,), dtype=DTYPE)
+            "state": gym.spaces.Box(
+                -1, 1, shape=(self.ae.encoder.latent_size,), dtype=DTYPE
+            )
         })
 
     def reset(self, *,
@@ -175,9 +178,14 @@ class RewardWrapper(gym.Wrapper):
 
 
 class PlayWrapper(gym.Wrapper):
-    """Player"""
+    """Gamification of our experiments
+    The user is able to control the agent using either mouse, keyboard or an
+    external controller
+    Comparing against the latest benchmark DRL agent is also possible
+    """
 
     def __init__(self, env: gym.Env, control: Input=Input.MOUSE):
+        """Create a Play Wrapper for an environment with given input device"""
         super().__init__(env)
         assert control in [Input.MOUSE, Input.KEYBOARD, Input.CONTROLLER, Input.AGENT]
         self.player_pos = None
@@ -229,8 +237,8 @@ class PlayWrapper(gym.Wrapper):
 
 
 class HParamCallback(BaseCallback):
-    """
-    Saves the hyperparameters at the beginning of training and logs them to Tensorboard.
+    """Saves the hyperparameters at the beginning of training and logs them to
+    Tensorboard.
     """
 
     def __init__(self, env_params : dict = {}, agent_params : dict={}):
