@@ -8,7 +8,7 @@ from stable_baselines3 import SAC
 
 import adlr_environments
 from utils import arg_parse, create_env, linear_schedule
-from utils.config import BPS_CONFIG, AE_CONFIG, LOG_PATH, AGENT_PATH
+from utils.config import BPS_CONFIG, LOG_PATH, AGENT_PATH
 
 
 ARGUMENTS = [
@@ -86,17 +86,6 @@ def evaluate(num_steps: int=1000):
 
     rewards, episodes, wins, crashes, stuck = 0, 0, 0, 0, 0
     obs = env.reset()
-
-    # TODO: remove before submission
-    # NOTE: uncomment for video recording
-    # env = VecVideoRecorder(
-    #     env,
-    #     "./videos/",
-    #     lambda x: x == 0,
-    #     video_length=num_steps-1,
-    #     name_prefix="static_sac_1dyn"
-    # )
-    # obs = env.reset()
 
     for _ in range(num_steps):
         action, _ = model.predict(obs, deterministic=True)

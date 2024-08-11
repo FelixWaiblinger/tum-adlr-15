@@ -23,6 +23,8 @@ def create_env(
     
     Args:
         ``wrapper``: list of (wrapper, kwargs_dict)
+        ``render``: render flag
+        ``obs_type``: type of observations (position, image or all)
         ``num_workers``: number of parallel environments
         ``options``: dict of environment options
     """

@@ -25,7 +25,6 @@ DEFAULT_OPTIONS = {
     "size_dynamic": 0.1,
     "min_speed": -0.1,
     "max_speed": 0.1,
-    "latent_size": 100,
     "uncertainty": False
 }
 

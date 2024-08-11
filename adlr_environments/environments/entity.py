@@ -8,7 +8,7 @@ from numpy.random import Generator
 
 from utils import eucl
 from utils.visualization import draw_arrow, draw_uncertainty
-from utils.constants import Color, PIXELS
+from utils.constants import Color
 
 
 class Entity(ABC):
