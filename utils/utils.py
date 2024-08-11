@@ -61,7 +61,7 @@ def create_env(
 
 
 def eucl(x: np.ndarray, y: np.ndarray) -> float:
-    """Return euclidean distance between positions x and y"""
+    """Return Euclidean distance between positions x and y"""
     return np.linalg.norm(x - y, ord=2)
 
 

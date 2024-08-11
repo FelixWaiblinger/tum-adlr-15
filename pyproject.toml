@@ -16,6 +16,7 @@ dependencies = [
  "stable-baselines3",
  "scipy",
  "torch",
+ "pytorch-lightning",
  "scikit-learn",
  "tqdm"
 ]

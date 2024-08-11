@@ -67,3 +67,8 @@ videos/
 
 # include models
 !ae50_random_obs.pt
+plots/
+agents/
+Trainingsdata/
+Datasets/
+*.pt

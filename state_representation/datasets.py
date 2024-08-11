@@ -12,6 +12,7 @@ from utils.constants import Observation
 
 class ImageDataset(Dataset):
     """Unsupervised RGB image dataset stored in main memory"""
+
     def __init__(self, data: str, transform=None) -> None:
         """Create an RGB image dataset from '<data>.pt'"""
         super().__init__()
