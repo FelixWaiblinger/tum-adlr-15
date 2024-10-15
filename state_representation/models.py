@@ -1,10 +1,14 @@
 """Collection of pytorch models"""
 
-from typing import OrderedDict
+from typing import Callable, OrderedDict
 
 import torch
 from torch import nn, optim
 import torch.nn.functional as F
+# from ncps.torch import CfC
+# from gymnasium.spaces import Space
+# from sb3_contrib.ppo_recurrent import MlpLstmPolicy
+# from stable_baselines3.common.policies import ActorCriticPolicy
 
 from utils.constants import DEVICE
 
@@ -175,3 +179,71 @@ class AutoEncoder(nn.Module):
         loss = self.loss(batch, reconstruction)
 
         return loss
+
+
+# class CfCNetwork(nn.Module):
+#     """Test"""
+#     def __init__(self, input_shape, action_shape) -> None:
+#         """Create a Closed-form Continuous Time (Liquid) Network"""
+#         super().__init__()
+
+#         # latent dimensions
+#         self.latent_dim_pi = 64
+#         self.latent_dim_vf = 64
+
+#         # liquid layer
+#         self.lnn_in = CfC(input_shape, 64, return_sequences=True, batch_first=True)
+#         self.state_in = torch.zeros(64).to(DEVICE)
+#         self.lnn_out = CfC(64, 64, return_sequences=False, batch_first=True)
+#         self.state_out = torch.zeros(64).to(DEVICE)
+
+#         # policy
+#         self.policy_net = nn.Sequential(nn.Linear(64, action_shape), nn.Tanh())
+
+#         # value function
+#         self.value_net = nn.Sequential(nn.Linear(64, 1), nn.ReLU())
+
+#     def forward(self, x):
+#         """Compute a forward pass of policy and value function"""
+#         x, self.state_in = self.lnn_in.forward(x, self.state_in)
+#         x, self.state_out = self.lnn_out.forward(x, self.state_out)
+
+#         return x, x
+#         return self.forward_actor(x), self.forward_critic(x)
+    
+#     def forward_actor(self, features):
+#         x, _ = self.forward(features)
+#         return x # self.policy_net(x)
+
+#     def forward_critic(self, features):
+#         x, _ = self.forward(features)
+#         return x # self.value_net(x)
+
+
+# class CfCPolicy(ActorCriticPolicy):
+#     """Test"""
+#     def __init__(
+#         self,
+#         observation_space: Space,
+#         action_space: Space,
+#         lr_schedule: Callable[[float], float],
+#         *args,
+#         **kwargs,
+#     ):
+#         self.input_shape = observation_space.shape[0]
+#         self.action_shape = action_space.shape[0]
+#         # Disable orthogonal initialization
+#         kwargs["ortho_init"] = False
+#         kwargs["share_features_extractor"] = True
+#         super().__init__(
+#             observation_space,
+#             action_space,
+#             lr_schedule,
+#             # Pass remaining arguments to base class
+#             *args,
+#             **kwargs,
+#         )
+
+#     def _build_mlp_extractor(self) -> None:
+#         self.mlp_extractor = CfCNetwork(self.input_shape, self.action_shape)
+#         self.mlp_extractor.to(DEVICE)

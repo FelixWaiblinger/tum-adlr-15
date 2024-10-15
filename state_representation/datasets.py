@@ -34,6 +34,17 @@ class ImageDataset(Dataset):
         return self.images[index]
 
 
+class ReshapeTransform:
+    """Transform to transpose / reshape data to a given format"""
+    def __init__(self, new_shape: tuple) -> None:
+        self.shape = new_shape
+
+    def __call__(self, batch: torch.Tensor) -> Any:
+        batch = batch.transpose(-3, -1)
+        # batch = batch.transpose(-3, -1)
+        return batch
+
+
 class CombineTransform:
     """Transform to apply multiple transforms to data"""
     def __init__(self, transforms: list) -> None:
