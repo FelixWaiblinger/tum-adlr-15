@@ -13,15 +13,26 @@ from utils.constants import Observation
 class ImageDataset(Dataset):
     """Unsupervised RGB image dataset stored in main memory"""
 
-    def __init__(self, data: str, transform=None) -> None:
+    def __init__(self,
+        image_path: str,
+        label_path: str=None,
+        transform=None
+    ) -> None:
         """Create an RGB image dataset from '<data>.pt'"""
         super().__init__()
 
-        if data.split(".")[-1] != ".pt":
-            data += ".pt"
-
-        self.images = torch.load(data)
+        if image_path.split(".")[-1] != ".pt":
+            image_path += ".pt"
+        self.images = torch.load(image_path).float()
         self.transform = transform
+
+        if label_path is None:
+            self.labels = None
+            return
+
+        if label_path.split(".")[-1] != ".pt":
+            label_path += ".pt"
+        self.labels = torch.load(label_path).float()
 
     def __len__(self):
         """Return the number of samples"""
@@ -29,20 +40,21 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index) -> Any:
         """Return the sample at the given index"""
+        image = self.images[index]
+        label = None if self.labels is None else self.labels[index]
         if self.transform:
-            return self.transform(self.images[index])
-        return self.images[index]
+            image = self.transform(image)
+        return image if label is None else (image, label)
 
 
-class ReshapeTransform:
-    """Transform to transpose / reshape data to a given format"""
-    def __init__(self, new_shape: tuple) -> None:
-        self.shape = new_shape
+class TransposeTransform:
+    """Transform to transpose / reshape data by switching given dimensions"""
+    def __init__(self, dim_a: int, dim_b: int) -> None:
+        self.first = dim_a
+        self.second = dim_b
 
     def __call__(self, batch: torch.Tensor) -> Any:
-        batch = batch.transpose(-3, -1)
-        # batch = batch.transpose(-3, -1)
-        return batch
+        return batch.transpose(self.first, self.second)
 
 
 class CombineTransform:

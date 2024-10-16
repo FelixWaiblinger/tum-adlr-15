@@ -6,7 +6,7 @@ from state_representation.datasets import (
     CombineTransform,
     NormalizeTransform,
     StandardizeTransform,
-    ReshapeTransform,
+    TransposeTransform,
     record_resets
 )
 from state_representation.models import (
