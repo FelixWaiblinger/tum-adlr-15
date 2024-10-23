@@ -3,6 +3,7 @@
 from typing import Callable, Dict
 from argparse import ArgumentParser
 
+import torch
 import numpy as np
 import gymnasium as gym
 from tqdm.auto import tqdm
@@ -110,6 +111,49 @@ def create_tqdm_bar(iterable, desc):
     return tqdm(enumerate(iterable),total=len(iterable), ncols=150, desc=desc)
 
 
+def train(model, epochs, train_data, val_data=None, save_path=""):
+    val_loss = 0
+    for epoch in range(epochs):
+        # train the model using training data
+        train_loss = 0
+        train_loop = create_tqdm_bar(
+            train_data,
+            desc=f"Training Epoch [{epoch + 1}/{epochs}]"
+        )
+
+        for train_iteration, batch in train_loop:
+            loss = model.training_step(batch)
+            train_loss += loss.item()
+
+            train_loop.set_postfix(
+                curr_train_loss=f"{(train_loss / (train_iteration + 1)):.5f}",
+                val_loss=f"{val_loss:.5f}"
+            )
+
+        if val_data is None: continue
+
+        # check performance using validation data
+        val_loss = 0
+        val_loop = create_tqdm_bar(
+            val_data,
+            desc=f"Validation Epoch [{epoch + 1}/{epochs}]"
+        )
+
+        with torch.no_grad():
+            for val_iteration, batch in val_loop:
+                loss = model.validation_step(batch)
+                val_loss += loss.item()
+
+                val_loop.set_postfix(
+                    val_loss=f"{(val_loss / (val_iteration + 1)):.5f}"
+                )
+
+        val_loss /= len(val_data)
+
+    if save_path != "":
+        torch.save(model, save_path)
+
+
 __all__ = [
     "create_env",
     "eucl",
@@ -117,4 +161,5 @@ __all__ = [
     "to_py_dict",
     "arg_parse",
     "create_tqdm_bar",
+    "train",
 ]

@@ -1,7 +1,7 @@
 """Environment wrappers"""
 
 from typing import Tuple, Any
-from bps_to_image_prediction.models import LitBpsToImgNetwork
+from state_representation.bps_to_image_prediction.models import LitBpsToImgNetwork
 
 import torch
 import pygame

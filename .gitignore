@@ -50,6 +50,7 @@ venv.bak/
 
 # our file / folder excludes
 logs/
+log/
 videos/
 *.ckpt
 *.svg
